@@ -250,23 +250,9 @@ app/
 │   └── matches/
 │       └── page.tsx          # Match history page
 ├── api/
-│   ├── auth/
-│   │   └── callback/
-│   │       └── route.ts      # Supabase auth callback
-│   ├── summoner/
-│   │   ├── link/
-│   │   │   └── route.ts      # POST: Link summoner account
-│   │   ├── refresh/
-│   │   │   └── route.ts      # POST: Refresh summoner data
-│   │   └── [id]/
-│   │       └── route.ts      # GET: Fetch summoner details
-│   └── stats/
-│       ├── champions/
-│       │   └── route.ts      # GET: Champion stats
-│       ├── matchups/
-│       │   └── route.ts      # GET: Matchup stats
-│       └── overview/
-│           └── route.ts      # GET: Dashboard overview
+│   └── auth/
+│       └── callback/
+│           └── route.ts      # Supabase auth callback (only API route needed)
 ├── components/
 │   ├── ui/                   # shadcn/ui components
 │   ├── auth/
@@ -284,6 +270,10 @@ app/
 │       ├── navbar.tsx
 │       └── sidebar.tsx
 ├── lib/
+│   ├── actions/
+│   │   ├── summoner-actions.ts    # linkSummoner, refreshSummonerData
+│   │   ├── stats-actions.ts        # getStatsOverview, getChampionStats
+│   │   └── auth-actions.ts         # Auth helper functions
 │   ├── supabase/
 │   │   ├── client.ts         # Browser client
 │   │   ├── server.ts         # Server client
@@ -344,47 +334,352 @@ class RiotAPI {
 
 ---
 
-## Phase 5: Core API Routes
+## Phase 5: Server Actions & API Routes
 
-### 1. Link Summoner (`/api/summoner/link` - POST)
+### Why Server Actions vs API Routes
 
-**Purpose:** Validate and link a Riot account to the authenticated user.
+**Use Server Actions for:**
 
-**Flow:**
+- Actions that primarily interact with your Supabase database
+- Internal operations (no external webhooks needed)
+- Better type safety with TypeScript
+- Direct function calls from client components
+- Automatic form handling with built-in loading states
 
-1. Verify user is authenticated (check Supabase session)
-2. Validate summoner name + region (NA1/EUW1)
-3. Fetch summoner data from Riot API
-4. Store in `summoners` table
-5. Return summoner details
+**Use API Routes for:**
 
-**Validation:** Zod schema for region and summoner name
+- External webhooks/callbacks (e.g., Supabase auth callback)
+- Any endpoint that MUST be accessible via HTTP/HTTPS
+
+### Implementation: Server Actions (`lib/actions.ts`)
+
+**File structure:**
+
+```
+lib/
+├── actions/
+│   ├── summoner-actions.ts     # Link & refresh summoner
+│   ├── stats-actions.ts         # Fetch stats
+│   └── auth-actions.ts          # Auth helpers
+```
+
+### 1. Link Summoner (Server Action)
+
+**File:** `lib/actions/summoner-actions.ts`
+
+```typescript
+'use server';
+
+import { createServerClient } from '@/lib/supabase/server';
+import { RiotAPI } from '@/lib/riot/api';
+import { z } from 'zod';
+
+const linkSummonerSchema = z.object({
+  region: z.enum(['NA1', 'EUW1']),
+  summonerName: z.string().min(1).max(16),
+});
+
+export async function linkSummoner(formData: FormData) {
+  // Validate input
+  const rawData = {
+    region: formData.get('region'),
+    summonerName: formData.get('summonerName'),
+  };
+
+  const validated = linkSummonerSchema.parse(rawData);
+
+  // Get authenticated user
+  const supabase = createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: 'Unauthorized' };
+  }
+
+  try {
+    // Fetch from Riot API
+    const riotAPI = new RiotAPI(process.env.RIOT_API_KEY!);
+    const summonerData = await riotAPI.getSummonerByName(
+      validated.region,
+      validated.summonerName
+    );
+
+    // Fetch ranked stats
+    const rankedData = await riotAPI.getLeagueEntries(
+      validated.region,
+      summonerData.id
+    );
+
+    // Store in database
+    const { data: summoner } = await supabase
+      .from('summoners')
+      .upsert({
+        user_id: user.id,
+        region: validated.region,
+        puuid: summonerData.puuid,
+        summoner_id: summonerData.id,
+        summoner_name: summonerData.name,
+        profile_icon_id: summonerData.profileIconId,
+        summoner_level: summonerData.summonerLevel,
+        last_synced_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    // Store ranked stats
+    if (rankedData && rankedData.length > 0) {
+      for (const entry of rankedData) {
+        await supabase.from('ranked_stats').upsert({
+          summoner_id: summoner.id,
+          queue_type: entry.queueType,
+          tier: entry.tier,
+          rank: entry.rank,
+          league_points: entry.leaguePoints,
+          wins: entry.wins,
+          losses: entry.losses,
+        });
+      }
+    }
+
+    return { success: true, summoner };
+  } catch (error) {
+    console.error('Link summoner failed:', error);
+    return { error: 'Failed to link summoner account' };
+  }
+}
+```
+
+**Usage in component:**
+
+```tsx
+// app/(dashboard)/components/link-summoner-form.tsx
+import { linkSummoner } from '@/lib/actions/summoner-actions';
+
+export function LinkSummonerForm() {
+  async function handleSubmit(formData: FormData) {
+    const result = await linkSummoner(formData);
+    if (result.error) {
+      // Show error toast
+    } else {
+      // Show success & refresh
+    }
+  }
+
+  return (
+    <form action={handleSubmit}>
+      <input name='region' />
+      <input name='summonerName' />
+      <button type='submit'>Link Account</button>
+    </form>
+  );
+}
+```
 
 ---
 
-### 2. Refresh Data (`/api/summoner/refresh` - POST)
+### 2. Refresh Data (Server Action)
 
-**Purpose:** Fetch latest match history and recompute stats.
+**File:** `lib/actions/summoner-actions.ts`
 
-**Flow:**
+```typescript
+'use server';
 
-1. Check `last_synced_at` → enforce 1-hour cooldown
-2. Fetch last 20 match IDs from Riot API
-3. Fetch match details for each match
-4. **Delete existing matches** for this summoner (cache invalidation)
-5. Insert new match data
-6. Recompute and upsert `champion_stats` and `matchup_stats`
-7. Update `last_synced_at` timestamp
+export async function refreshSummonerData(summonerId: string) {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-**Error Handling:** Handle Riot API errors (404, 429 rate limit, 503)
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Get summoner data
+  const { data: summoner } = await supabase
+    .from('summoners')
+    .select('*')
+    .eq('id', summonerId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!summoner) {
+    return { error: 'Summoner not found' };
+  }
+
+  // Check 1-2 minute cooldown
+  const lastSync = summoner.last_synced_at
+    ? new Date(summoner.last_synced_at)
+    : null;
+  const cooldownMinutes = 1;
+  const cooldownMs = cooldownMinutes * 60 * 1000;
+
+  if (lastSync && Date.now() - lastSync.getTime() < cooldownMs) {
+    const remainingTime = Math.ceil(
+      (cooldownMs - (Date.now() - lastSync.getTime())) / 60000
+    );
+    return {
+      error: `Please wait ${remainingTime} minute(s) before refreshing again`,
+    };
+  }
+
+  try {
+    const riotAPI = new RiotAPI(process.env.RIOT_API_KEY!);
+
+    // Fetch match IDs
+    const matchIds = await riotAPI.getMatchIds(
+      summoner.region,
+      summoner.puuid,
+      20
+    );
+
+    // Fetch match details (queued automatically by rate limiter)
+    const matches = await riotAPI.getMultipleMatches(summoner.region, matchIds);
+
+    // Process and store matches (helper function)
+    await processAndStoreMatches(matches, summoner.id, supabase);
+
+    // Update last_synced_at
+    await supabase
+      .from('summoners')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', summoner.id);
+
+    return { success: true, matchCount: matches.length };
+  } catch (error) {
+    console.error('Refresh failed:', error);
+    return { error: 'Failed to refresh data' };
+  }
+}
+```
 
 ---
 
-### 3. Stats Endpoints
+### 3. Stats Actions (Server Actions)
 
-- **`/api/stats/overview`**: Aggregated KDA, win rate, total games
-- **`/api/stats/champions`**: Top 10 champions by games played
-- **`/api/stats/matchups`**: Best/worst matchups (win rate > 60% or < 40%, min 3 games)
+**File:** `lib/actions/stats-actions.ts`
+
+```typescript
+'use server';
+
+export async function getStatsOverview(summonerId: string) {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Verify ownership and fetch data
+  const { data: summoner } = await supabase
+    .from('summoners')
+    .select('*')
+    .eq('id', summonerId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!summoner) {
+    return { error: 'Summoner not found' };
+  }
+
+  // Fetch matches and compute stats
+  const { data: matches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('summoner_id', summonerId)
+    .order('game_creation', { ascending: false });
+
+  // Compute aggregated stats
+  const totalGames = matches?.length || 0;
+  const wins = matches?.filter((m) => m.win).length || 0;
+  const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
+
+  const totalKills = matches?.reduce((sum, m) => sum + m.kills, 0) || 0;
+  const totalDeaths = matches?.reduce((sum, m) => sum + m.deaths, 0) || 0;
+  const totalAssists = matches?.reduce((sum, m) => sum + m.assists, 0) || 0;
+
+  return {
+    success: true,
+    stats: {
+      totalGames,
+      wins,
+      losses: totalGames - wins,
+      winRate: Number(winRate.toFixed(1)),
+      avgKDA: computeKDA(totalKills, totalDeaths, totalAssists),
+      avgKills: Number((totalKills / totalGames).toFixed(1)),
+      avgDeaths: Number((totalDeaths / totalGames).toFixed(1)),
+      avgAssists: Number((totalAssists / totalGames).toFixed(1)),
+    },
+  };
+}
+
+export async function getChampionStats(summonerId: string) {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  const { data: championStats } = await supabase
+    .from('champion_stats')
+    .select('*')
+    .eq('summoner_id', summonerId)
+    .order('games_played', { ascending: false })
+    .limit(10);
+
+  return { success: true, stats: championStats };
+}
+```
+
+---
+
+### 4. Keep API Routes for External Callbacks
+
+**File:** `app/api/auth/callback/route.ts` (Required for Supabase Auth)
+
+```typescript
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+
+export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get('code');
+
+  if (code) {
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    await supabase.auth.exchangeCodeForSession(code);
+  }
+
+  return NextResponse.redirect(requestUrl.origin);
+}
+```
+
+---
+
+## Updated Folder Structure
+
+```
+app/
+├── lib/
+│   ├── actions/
+│   │   ├── summoner-actions.ts    # linkSummoner, refreshSummonerData
+│   │   ├── stats-actions.ts       # getStatsOverview, getChampionStats, getMatchupStats
+│   │   └── auth-actions.ts        # Session helpers
+│   └── ...
+└── api/
+    └── auth/
+        └── callback/
+            └── route.ts          # Supabase callback (keep this!)
+```
 
 ---
 
