@@ -204,7 +204,7 @@ export async function refreshSummonerData(summonerId: string) {
     }
 
     // Fetch match details (with rate limiting)
-    const matches = await riotApi.getMutipleMatches(
+    const matches = await riotApi.getMultipleMatches(
       summoner.region,
       matchIds,
       5
@@ -216,16 +216,6 @@ export async function refreshSummonerData(summonerId: string) {
       // Find player's participant data
       const participant = RiotApi.getPlayerParticipant(match, summoner.puuid);
       if (!participant) continue;
-
-      // Check if match already exists
-      const { data: existingMatch } = await supabase
-        .from('matches')
-        .select('id')
-        .eq('summoner_id', summoner.id)
-        .eq('match_id', match.metadata.matchId)
-        .single();
-
-      if (existingMatch) continue; // Skip already stored matches
 
       // Insert match
       await supabase.from('matches').insert({

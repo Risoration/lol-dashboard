@@ -165,7 +165,10 @@ export default async function DashboardPage() {
       />
 
       <div className='grid md:grid-cols-2 gap-6'>
-        <RecentMatches matches={combinedMatches} />
+        <RecentMatches
+          region={summoners[0].region}
+          matchIds={combinedMatches.map((match) => match.metadata.matchId)}
+        />
         <TopChampions champions={combinedChampions} />
       </div>
     </div>

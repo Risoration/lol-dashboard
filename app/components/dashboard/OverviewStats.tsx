@@ -28,7 +28,7 @@ export default function OverviewStats({
   rankedStats,
 }: OverviewStatsProps) {
   const getTierColor = (tier: string | null) => {
-    if (!tier) return 'default';
+    if (!tier) return 'victory';
     const lowerTier = tier.toLowerCase();
     if (lowerTier.includes('challenger')) return 'default';
     if (lowerTier.includes('grandmaster')) return 'destructive';
@@ -64,8 +64,14 @@ export default function OverviewStats({
                       {ranked.tier ? (
                         <>
                           <div className='flex items-center gap-2 mb-2'>
-                            <Badge variant={getTierColor(ranked.tier)}>
-                              {ranked.tier} {ranked.rank}
+                            <Badge
+                              variant={
+                                ranked.wins > ranked.losses
+                                  ? 'victory'
+                                  : 'defeat'
+                              }
+                            >
+                              {ranked.wins > ranked.losses ? 'Win' : 'Loss'}
                             </Badge>
                             <span className='text-sm font-medium'>
                               {ranked.league_points} LP

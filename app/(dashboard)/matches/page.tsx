@@ -86,7 +86,7 @@ export default async function MatchesPage() {
                     {/* Champion */}
                     <div className='w-32'>
                       <div className='font-semibold'>{match.champion_name}</div>
-                      <Badge variant={match.win ? 'default' : 'destructive'}>
+                      <Badge variant={match.win ? 'victory' : 'defeat'}>
                         {match.win ? 'Victory' : 'Defeat'}
                       </Badge>
                     </div>
@@ -94,7 +94,7 @@ export default async function MatchesPage() {
                     {/* Role */}
                     {match.team_position && (
                       <div className='w-20 hidden md:block'>
-                        <Badge variant='outline'>{match.team_position}</Badge>
+                        <Badge variant='victory'>{match.team_position}</Badge>
                       </div>
                     )}
 

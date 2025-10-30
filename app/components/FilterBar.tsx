@@ -13,7 +13,7 @@ export default function FilterBar() {
         <span className='text-sm font-medium'>Queue:</span>
         <div className='flex gap-2'>
           <Badge
-            variant={filters.queueType === 'ALL' ? 'default' : 'outline'}
+            variant={filters.queueType === 'ALL' ? 'victory' : 'defeat'}
             className='cursor-pointer'
             onClick={() => setQueueType('ALL')}
           >
@@ -21,7 +21,7 @@ export default function FilterBar() {
           </Badge>
           <Badge
             variant={
-              filters.queueType === 'RANKED_SOLO_5x5' ? 'default' : 'outline'
+              filters.queueType === 'RANKED_SOLO_5x5' ? 'victory' : 'defeat'
             }
             className='cursor-pointer'
             onClick={() => setQueueType('RANKED_SOLO_5x5')}
@@ -30,7 +30,7 @@ export default function FilterBar() {
           </Badge>
           <Badge
             variant={
-              filters.queueType === 'RANKED_FLEX_SR' ? 'default' : 'outline'
+              filters.queueType === 'RANKED_FLEX_SR' ? 'victory' : 'defeat'
             }
             className='cursor-pointer'
             onClick={() => setQueueType('RANKED_FLEX_SR')}

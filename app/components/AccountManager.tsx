@@ -64,7 +64,7 @@ export default function AccountManager({
       {/* Region Filter */}
       <div className='flex gap-2'>
         <Badge
-          variant={filters.region === 'ALL' ? 'default' : 'outline'}
+          variant={filters.region === 'ALL' ? 'victory' : 'defeat'}
           className='cursor-pointer'
           onClick={() => handleRegionFilter('ALL')}
         >
@@ -73,7 +73,7 @@ export default function AccountManager({
         {summoners.map((summoner) => (
           <Badge
             key={summoner.id}
-            variant={filters.region === summoner.region ? 'default' : 'outline'}
+            variant={filters.region === summoner.region ? 'victory' : 'defeat'}
             className='cursor-pointer'
             onClick={() =>
               handleRegionFilter(summoner.region as 'NA1' | 'EUW1')

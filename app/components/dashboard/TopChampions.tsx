@@ -64,9 +64,7 @@ export default function TopChampions({ champions }: TopChampionsProps) {
                         Win Rate
                       </div>
                       <Badge
-                        variant={
-                          champion.winRate >= 50 ? 'default' : 'secondary'
-                        }
+                        variant={champion.winRate >= 50 ? 'victory' : 'defeat'}
                         className='mt-1'
                       >
                         {champion.winRate}%

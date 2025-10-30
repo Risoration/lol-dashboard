@@ -114,7 +114,7 @@ export default async function ChampionsPage() {
                       <td className='py-3 pr-4 text-center'>
                         <Badge
                           variant={
-                            champion.winRate >= 50 ? 'default' : 'secondary'
+                            champion.winRate >= 50 ? 'victory' : 'defeat'
                           }
                         >
                           {champion.winRate}%
