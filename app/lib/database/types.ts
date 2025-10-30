@@ -71,9 +71,20 @@ export interface ProfileUpdate {
 export interface Summoner {
   id: string;
   user_id: string;
-  region: 'NA1' | 'EUW1';
+  region:
+    | 'NA1'
+    | 'EUW1'
+    | 'EUN1'
+    | 'KR'
+    | 'BR1'
+    | 'LAN1'
+    | 'LAS1'
+    | 'TR1'
+    | 'RU'
+    | 'JP1'
+    | 'OC1';
   puuid: string;
-  summoner_id: string;
+  summoner_id: string | null;
   summoner_name: string;
   profile_icon_id: number;
   summoner_level: number;
@@ -84,9 +95,20 @@ export interface Summoner {
 export interface SummonerInsert {
   id?: string;
   user_id: string;
-  region: 'NA1' | 'EUW1';
+  region:
+    | 'NA1'
+    | 'EUW1'
+    | 'EUN1'
+    | 'KR'
+    | 'BR1'
+    | 'LAN1'
+    | 'LAS1'
+    | 'TR1'
+    | 'RU'
+    | 'JP1'
+    | 'OC1';
   puuid: string;
-  summoner_id: string;
+  summoner_id?: string | null;
   summoner_name: string;
   profile_icon_id: number;
   summoner_level: number;

@@ -1,18 +1,34 @@
-'use server';
-import { createServerClient } from './supabase/server';
-import { z } from 'zod';
-import { RiotApi } from './riot/api';
+/**
+ * Central export file for all server actions
+ *
+ * Usage in components:
+ * import { linkSummoner, getStatsOverview } from '@/lib/actions';
+ */
 
-const FormSchema = z.object({
-  region: z.enum(['NA1', 'EUW1']),
-  summonerName: z.string().min(1).max(16),
-  summonerId: z.string().min(2).max(5),
-});
+// Summoner actions
+export {
+  linkSummoner,
+  refreshSummonerData,
+  getSummonerById,
+  getUserSummoners,
+} from './actions/summoner-actions';
 
-export async function linkSummoner(formData: FormData) {
-  const rawFormData = {
-    region: formData.get('region'),
-    summonerName: formData.get('summonerName'),
-    summonerId: formData.get('summonerId'),
-  };
-}
+// Stats actions
+export {
+  getStatsOverview,
+  getChampionStats,
+  getMatchHistory,
+  getRankedStats,
+} from './actions/stats-actions';
+
+// Auth actions
+export {
+  signUp,
+  signIn,
+  getSession,
+  getUser,
+  signOut,
+} from './actions/auth-actions';
+
+// Public actions
+export { searchPlayer } from './actions/public-actions';

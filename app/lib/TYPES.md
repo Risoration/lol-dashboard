@@ -24,24 +24,35 @@ app/lib/
 - **`Tier`** - Rank tiers: IRON → CHALLENGER
 - **`QueueType`** - RANKED_SOLO_5x5, RANKED_FLEX_SR
 
-### Summoner Types
+### Account Types (ACCOUNT-V1)
 
-- **`SummonerDto`** - Riot API summoner response
-  - Includes puuid, summoner_id, name, level, profile icon
+- **`AccountDto`** - Riot account information (uses Riot ID)
+  - Includes puuid, gameName, tagLine
+  - Used to get PUUID from Riot ID (gameName#tagLine)
+
+### Summoner Types (SUMMONER-V4)
+
+- **`SummonerDto`** - League of Legends summoner data
+  - Includes puuid, summoner_id (encrypted), level, profile icon
+  - Fetched using PUUID
 
 ### League Types
 
-- **`LeagueEntryDto`** - Ranked information
+- **`LeagueEntryDto`** - Ranked information (formerly RankedInformationData)
   - Includes tier, rank, LP, wins, losses
 - **`MiniSeriesDto`** - Promotion series info
 
 ### Match Types
 
-- **`MatchDto`** - Complete match data from Riot
-- **`ParticipantDto`** - Individual player stats in a match
+- **`MatchDto`** - Complete match data from Riot (formerly MatchData)
+  - Contains `metadata: MetadataDto` and `info: InfoDto`
+- **`MetadataDto`** - Match metadata (matchId, participants PUUIDs)
+- **`InfoDto`** - Match information (duration, queue, participants, teams)
+- **`ParticipantDto`** - Individual player stats in a match (formerly ParticipantData)
   - KDA, damage, CS, items, runes, etc.
-- **`TeamDto`** - Team objectives and win status
-- **`MatchInfoDto`** - Match metadata (duration, queue, participants)
+- **`TeamDto`** - Team objectives and win status (formerly TeamData)
+- **`PerksDto`**, **`PerkStyleDto`**, **`PerkSelectionDto`**, **`PerkStatsDto`** - Rune/perk data
+- **`ObjectivesDto`**, **`ObjectiveDto`** - Game objectives data
 
 ### Helper Types
 
@@ -94,11 +105,43 @@ const toUpdate: SummonerUpdate = {
 
 ```typescript
 import { RiotApi } from '@/lib/riot/api';
-import type { MatchDto, ParticipantDto } from '@/lib/riot/types';
+import type {
+  AccountDto,
+  SummonerDto,
+  LeagueEntryDto,
+  MatchDto,
+  ParticipantDto,
+} from '@/lib/riot/types';
 
 const riotAPI = new RiotApi();
 
-// Fully typed responses
+// Get account by Riot ID (gameName#tagLine)
+const account: AccountDto = await riotAPI.getAccountByRiotId(
+  'NA1',
+  'PlayerName',
+  'NA1'
+);
+
+// Get summoner data using PUUID
+const summoner: SummonerDto = await riotAPI.getSummonerByPuuid(
+  'NA1',
+  account.puuid
+);
+
+// Or use the convenience method (combines both calls)
+const summonerDirect: SummonerDto = await riotAPI.getSummonerByRiotId(
+  'NA1',
+  'PlayerName',
+  'NA1'
+);
+
+// Get ranked info
+const rankedInfo: LeagueEntryDto[] = await riotAPI.getRankedInfoBySummonerId(
+  'NA1',
+  summoner.id
+);
+
+// Get match data
 const match: MatchDto = await riotAPI.getMatchDetails('NA1', 'match_id');
 const participant: ParticipantDto = match.info.participants[0];
 

@@ -47,28 +47,39 @@ export type Tier =
   | 'GRANDMASTER'
   | 'CHALLENGER';
 export type Rank = 'I' | 'II' | 'III' | 'IV';
-export type QueueType = 'RANKED_SOLO_5x5' | 'RANKED_FLEX_SR';
+export type QueueType = 'RANKED_SOLO_5x5' | 'RANKED_FLEX_SR' | 'ARAM';
 export type Role = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY' | 'NONE';
 export type TeamPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY';
 
 // ============================================================================
-// Summoner Types
+// Account Types (ACCOUNT-V1)
 // ============================================================================
 
-export interface SummonerData {
+export interface AccountDto {
+  /** Encrypted PUUID */
+  puuid: string;
+  /** Game name (the part before #) */
+  gameName: string;
+  /** Tag line (the part after #) */
+  tagLine: string;
+}
+
+// ============================================================================
+// Summoner Types (SUMMONER-V4)
+// ============================================================================
+
+export interface SummonerDto {
   /** Encrypted summoner ID */
   id: string;
   /** Encrypted account ID (legacy) */
   accountId: string;
   /** Encrypted PUUID */
   puuid: string;
-  /** Summoner name */
-  name: string;
-  /** Summoner level */
-  summonerLevel: number;
   /** Profile icon ID */
   profileIconId: number;
-  /** ID of the summoner icon associated with the summoner */
+  /** Summoner level */
+  summonerLevel: number;
+  /** Date summoner was last modified (Unix timestamp in milliseconds) */
   revisionDate: number;
 }
 
@@ -76,7 +87,7 @@ export interface SummonerData {
 // League/ ranked Types
 // ============================================================================
 
-export interface RankedInformationData {
+export interface LeagueEntryDto {
   /** League ID */
   leagueId: string;
   /** Summoner ID */
@@ -103,27 +114,18 @@ export interface RankedInformationData {
   freshBlood: boolean;
   /** Is inactive */
   inactive: boolean;
-  /** Mini series info (if in promotion series) */
-  miniSeries?: MiniSeriesData;
-}
-
-export interface MiniSeriesData {
-  losses: number;
-  progress: string;
-  target: number;
-  wins: number;
 }
 
 // ============================================================================
 // Match Types
 // ============================================================================
 
-export interface MatchData {
-  metadata: MatchMetadataData;
-  info: MatchInfoData;
+export interface MatchDto {
+  metadata: MetadataDto;
+  info: InfoDto;
 }
 
-export interface MatchMetadataData {
+export interface MetadataDto {
   /** Match data version */
   dataVersion: string;
   /** Match ID */
@@ -132,7 +134,7 @@ export interface MatchMetadataData {
   participants: string[];
 }
 
-export interface MatchInfoData {
+export interface InfoDto {
   /** Unix timestamp for when the game is created on the game server */
   gameCreation: number;
   /** Game duration in seconds */
@@ -160,12 +162,12 @@ export interface MatchInfoData {
   /** Tournament code used to generate the match */
   tournamentCode?: string;
   /** Participants in the match */
-  participants: ParticipantData[];
+  participants: ParticipantDto[];
   /** Teams in the match */
-  teams: TeamData[];
+  teams: TeamDto[];
 }
 
-export interface ParticipantData {
+export interface ParticipantDto {
   /** Participant's team side */
   teamId: 100 | 200;
   /** Champion ID */
@@ -189,7 +191,7 @@ export interface ParticipantData {
   /** Summoner Icons */
   profileIcon: number;
   /** Rune tree ID for primary */
-  perks: PerksData;
+  perks: PerksDto;
   /** Individual position */
   individualPosition: TeamPosition;
   /** Team position */
@@ -328,23 +330,23 @@ export interface ParticipantData {
   unrealKills: number;
 }
 
-export interface PerksData {
+export interface PerksDto {
   /** Primary rune tree */
-  styles: PerkStyleData[];
+  styles: PerkStyleDto[];
   /** Stat perks */
-  statPerks: PerkStatsData;
+  statPerks: PerkStatsDto;
 }
 
-export interface PerkStyleData {
+export interface PerkStyleDto {
   /** Style description */
   description: string;
   /** Selected perk IDs */
-  selections: PerkSelectionData[];
+  selections: PerkSelectionDto[];
   /** Style ID */
   style: number;
 }
 
-export interface PerkSelectionData {
+export interface PerkSelectionDto {
   /** Perk ID */
   perk: number;
   /** ID of the first var */
@@ -355,7 +357,7 @@ export interface PerkSelectionData {
   var3: number;
 }
 
-export interface PerkStatsData {
+export interface PerkStatsDto {
   /** Defense stat */
   defense: number;
   /** Flex stat */
@@ -364,31 +366,31 @@ export interface PerkStatsData {
   offense: number;
 }
 
-export interface TeamData {
+export interface TeamDto {
   /** Team ID (100 = blue, 200 = red) */
   teamId: 100 | 200;
   /** Win status */
   win: boolean;
   /** Team objectives */
-  objectives: ObjectivesData;
+  objectives: ObjectivesDto;
 }
 
-export interface ObjectivesData {
+export interface ObjectivesDto {
   /** Baron objective */
-  baron: ObjectiveData;
+  baron: ObjectiveDto;
   /** Champion objective */
-  champion: ObjectiveData;
+  champion: ObjectiveDto;
   /** Dragon objective */
-  dragon: ObjectiveData;
+  dragon: ObjectiveDto;
   /** Inhibitor objective */
-  inhibitor: ObjectiveData;
+  inhibitor: ObjectiveDto;
   /** Rift Herald objective */
-  riftHerald: ObjectiveData;
+  riftHerald: ObjectiveDto;
   /** Tower objective */
-  tower: ObjectiveData;
+  tower: ObjectiveDto;
 }
 
-export interface ObjectiveData {
+export interface ObjectiveDto {
   /** Objective status */
   first: boolean;
   kills: number;
@@ -398,7 +400,7 @@ export interface ObjectiveData {
 // Champion Types (for our database)
 // ============================================================================
 
-export interface ChampionData {
+export interface ChampionDto {
   id: number;
   name: string;
   key: string; // Used in game data dragon
