@@ -6,6 +6,7 @@ import { signOut } from '../lib/actions/auth-actions';
 import { Button } from '../../components/ui/button';
 import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import DarkModeToggle from '@/components/ui/darkmodetoggle';
 
 export default function Navigation() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function Navigation() {
           </div>
 
           <div className='flex items-center gap-4'>
+            <DarkModeToggle />
             <Button
               variant='ghost'
               size='sm'

@@ -35,9 +35,9 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   const result = await searchPlayer(formData);
 
-  if (result.error || !result.success) {
+  if (!result.success) {
     return (
-      <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4'>
+      <div className='min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4'>
         <Card className='max-w-md w-full'>
           <CardHeader>
             <CardTitle>Player Not Found</CardTitle>
@@ -56,15 +56,15 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   const { player } = result;
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4'>
-      <div className='max-w-4xl mx-auto space-y-6 py-8'>
+    <div className='min-h-screen bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4'>
+      <div className='max-w-5xl mx-auto space-y-6 py-8'>
         {/* Back Button */}
         <Link href='/'>
           <Button variant='outline'>← Back to Home</Button>
         </Link>
 
         {/* Player Header */}
-        <Card>
+        <Card className='m-lg'>
           <CardHeader>
             <div className='flex items-center gap-4'>
               <div className='w-16 h-16 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center text-2xl font-bold'>
@@ -145,6 +145,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             <CardDescription>
               {player.matches?.length || 0} recent matches found
             </CardDescription>
+            <CardDescription></CardDescription>
           </CardHeader>
           <CardContent>
             <MatchList

@@ -11,6 +11,9 @@ import type { Match } from '../../lib/database/types';
 import { formatDistanceToNow } from 'date-fns';
 import { RiotApi } from '../../lib/riot/api';
 import type { Region } from '@/app/lib/riot/types';
+import Image from 'next/image';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { AvatarFallback } from '@radix-ui/react-avatar';
 
 interface RecentMatchesProps {
   region: Region;
@@ -62,9 +65,6 @@ export default async function RecentMatches({
                 <div className='flex items-center gap-4 flex-1'>
                   {/* Champion */}
                   <div className='w-24'>
-                    <div className='font-medium text-sm'>
-                      {match.info.participants[0].championName}
-                    </div>
                     <Badge
                       variant={match.info.teams[0].win ? 'victory' : 'defeat'}
                       className='text-xs'

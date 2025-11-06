@@ -1,12 +1,14 @@
 import { Skeleton } from '../components/ui/skeleton';
+import Navigation from './components/Navigation';
 
 export default function Loading() {
   return (
-    <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900'>
+    <div className='flex min-h-screen items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900'>
+      <Navigation />
       <div className='w-full max-w-5xl p-6'>
         <div className='text-center mb-8'>
-          <Skeleton className='h-10 w-96 mx-auto mb-2' />
-          <Skeleton className='h-5 w-128 mx-auto' />
+          <Skeleton className='h-10 w-full mx-auto mb-2' />
+          <Skeleton className='h-5 w-full mx-auto' />
         </div>
 
         <div className='grid md:grid-cols-2 gap-6'>

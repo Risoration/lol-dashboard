@@ -3,7 +3,8 @@
 import { RiotApi } from '../riot/api';
 import { z } from 'zod';
 import { getProfileIcon } from '../utils';
-import type { MatchDto } from '../riot/types';
+import type { LeagueEntryDto, MatchDto } from '../riot/types';
+import cache from '../cache';
 
 const searchPlayerSchema = z.object({
   region: z.string().min(1, 'Region is required'),
@@ -11,7 +12,33 @@ const searchPlayerSchema = z.object({
   tagLine: z.string().min(1, 'Tag line is required'),
 });
 
-export async function searchPlayer(formData: FormData) {
+type SearchPlayerSuccess = {
+  success: true;
+  stale?: boolean;
+  player: {
+    puuid: string;
+    gameName: string;
+    tagLine: string;
+    region: string;
+    profileIconId: number;
+    profileIcon: string;
+    summonerLevel: number;
+    rankedStats: LeagueEntryDto[];
+    matchIds: string[];
+    matches: MatchDto[];
+  };
+};
+
+type SearchPlayerError = {
+  success: false;
+  error: string;
+};
+
+type SearchPlayerResult = SearchPlayerSuccess | SearchPlayerError;
+
+export async function searchPlayer(
+  formData: FormData
+): Promise<SearchPlayerResult> {
   const rawData = {
     region: formData.get('region'),
     gameName: formData.get('gameName'),
@@ -20,8 +47,11 @@ export async function searchPlayer(formData: FormData) {
 
   const validated = searchPlayerSchema.parse(rawData);
 
+  const cacheKey = `public:${validated.region}:${validated.gameName}#${validated.tagLine}`;
+
   try {
-    const riotApi = new RiotApi();
+    // Use non-blocking mode so we don't hang the UI when no tokens are available
+    const riotApi = new RiotApi({ nonBlocking: true });
 
     // Get account data
     const accountData = await riotApi.getAccountByRiotId(
@@ -73,7 +103,7 @@ export async function searchPlayer(formData: FormData) {
       }
     }
 
-    return {
+    const payload: SearchPlayerSuccess = {
       success: true,
       player: {
         puuid: accountData.puuid,
@@ -88,13 +118,29 @@ export async function searchPlayer(formData: FormData) {
         matches: matches || [],
       },
     };
+
+    // Cache for 10 minutes
+    cache.set(cacheKey, payload, 10 * 60 * 1000);
+    return payload;
   } catch (error) {
     console.error('Search player error:', error);
+
+    // If rate limited or no tokens, try cache fallback
+    const code = (error as any)?.code as string | undefined;
+    if (code === 'RATE_LIMIT_NO_TOKENS') {
+      const cached = cache.get<SearchPlayerSuccess>(cacheKey);
+
+      if (cached) {
+        return { ...cached, stale: true } as SearchPlayerSuccess;
+      }
+    }
+
     return {
+      success: false,
       error:
         error instanceof Error
           ? error.message
           : 'Failed to find player. Please check the name, tag, and region.',
-    };
+    } as SearchPlayerError;
   }
 }

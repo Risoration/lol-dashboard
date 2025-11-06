@@ -14,9 +14,11 @@ import {
 export class RiotApi {
   private readonly apiKey: string;
   private readonly rateLimiter: RateLimiter;
+  private readonly nonBlocking: boolean;
 
-  constructor() {
+  constructor(opts?: { nonBlocking?: boolean }) {
     this.apiKey = process.env.RIOT_API_KEY!;
+    this.nonBlocking = Boolean(opts?.nonBlocking);
 
     if (!this.apiKey) {
       throw new Error(
@@ -45,7 +47,16 @@ export class RiotApi {
     url: string,
     options: AxiosRequestConfig = {}
   ): Promise<T> {
-    //wait for token to become available
+    // If non-blocking and no tokens are available, fail fast so callers can use cache
+    const waitMs = this.rateLimiter.getWaitTime();
+    if (this.nonBlocking && waitMs > 0) {
+      const err: any = new Error('RATE_LIMIT_NO_TOKENS');
+      err.code = 'RATE_LIMIT_NO_TOKENS';
+      err.waitSeconds = Math.ceil(waitMs / 1000);
+      throw err;
+    }
+
+    // Otherwise wait for a token to become available
     await this.rateLimiter.waitForToken();
 
     // Add API key as query parameter
@@ -62,6 +73,7 @@ export class RiotApi {
       const response = await axios.request<T>({
         url: urlWithKey,
         ...options,
+        timeout: options.timeout ?? 10000,
         validateStatus: (status) =>
           (status >= 200 && status < 300) || status === 429,
       });
