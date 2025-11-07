@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
+import { buildPlayerProfilePath, parseSearchInputs } from '../lib/utils';
 
 export default function LinkAccountSection() {
   const router = useRouter();
@@ -44,23 +45,19 @@ export default function LinkAccountSection() {
     setIsSearching(true);
 
     const formData = new FormData(e.currentTarget);
-    const gameName = formData.get('searchGameName') as string;
-    const tagLine = formData.get('searchTagLine') as string;
-    const region = formData.get('searchRegion') as string;
-
-    // Validate inputs
-    if (!gameName || !tagLine || !region) {
-      toast.error('Please fill in all fields');
+    const parsed = parseSearchInputs(formData);
+    if ('error' in parsed) {
+      toast.error(parsed.error);
       setIsSearching(false);
       return;
     }
 
-    // Redirect to public player profile page
-    router.push(
-      `/player/${region}/${encodeURIComponent(gameName)}/${encodeURIComponent(
-        tagLine
-      )}`
+    const path = buildPlayerProfilePath(
+      parsed.region,
+      parsed.gameName,
+      parsed.tagLine
     );
+    router.push(path);
   }
 
   return (

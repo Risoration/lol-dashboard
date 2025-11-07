@@ -56,3 +56,49 @@ const QUEUE_NAMES: Record<number, string> = {
 export function getQueueName(queueId: number): string {
   return QUEUE_NAMES[queueId] || `Queue ${queueId}`;
 }
+
+/**
+ * Build the canonical player profile route path
+ */
+export function buildPlayerProfilePath(
+  region: string,
+  gameName: string,
+  tagLine: string
+): string {
+  return `/player/${region}/${encodeURIComponent(
+    gameName
+  )}/${encodeURIComponent(tagLine)}`;
+}
+
+/**
+ * Parse search inputs from a FormData. Supports either:
+ * - separate fields: searchGameName, searchTagLine, searchRegion
+ * - single combined query: searchQuery => "GameName#TAG"
+ */
+export function parseSearchInputs(
+  formData: FormData,
+  fallbackRegion?: string
+): { region: string; gameName: string; tagLine: string } | { error: string } {
+  const rawRegion =
+    (formData.get('searchRegion') as string) || fallbackRegion || '';
+  const rawGameName = (formData.get('searchGameName') as string) || '';
+  const rawTagLine = (formData.get('searchTagLine') as string) || '';
+
+  let region = String(rawRegion || '').trim();
+  let gameName = String(rawGameName || '').trim();
+  let tagLine = String(rawTagLine || '').trim();
+
+  // If separate fields not provided, try parsing a single query like "Name#TAG"
+  if (!gameName || !tagLine) {
+    const query = (formData.get('searchQuery') as string) || '';
+    const [qName, qTag] = String(query).split('#');
+    if (!gameName && qName) gameName = qName.trim();
+    if (!tagLine && qTag) tagLine = qTag.trim();
+  }
+
+  if (!region || !gameName || !tagLine) {
+    return { error: 'Please fill in all fields' };
+  }
+
+  return { region, gameName, tagLine };
+}

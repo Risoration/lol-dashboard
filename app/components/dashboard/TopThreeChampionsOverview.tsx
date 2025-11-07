@@ -71,7 +71,9 @@ export default function TopThreeChampionsOverview({
   const total = totalGames ?? matches.length;
 
   const winRate = (wins: number, losses: number) => {
-    return losses === 0 ? 100 : (wins / losses) * 100;
+    return losses === 0
+      ? '100'
+      : ((wins / (wins + losses)) * 100).toFixed(0).toString();
   };
 
   return (
@@ -93,7 +95,7 @@ export default function TopThreeChampionsOverview({
               key={champ.name}
               className='flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg'
             >
-              <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-3 min-w-0'>
                 <Avatar className='size-8 shrink-0'>
                   <AvatarImage
                     src={`https://ddragon.leagueoflegends.com/cdn/15.1.1/img/champion/${champ.name}.png`}
@@ -105,16 +107,17 @@ export default function TopThreeChampionsOverview({
                     <span
                       className={clsx(
                         'text-xs text-muted-foreground',
-                        winRate(champ.wins, champ.losses) >= 70
+                        parseFloat(winRate(champ.wins, champ.losses)) >= 70
                           ? 'text-orange-600 dark:text-orange-400'
-                          : winRate(champ.wins, champ.losses) >= 60
+                          : parseFloat(winRate(champ.wins, champ.losses)) >= 60
                           ? 'text-blue-600 dark:text-blue-400'
-                          : winRate(champ.wins, champ.losses) >= 50
+                          : parseFloat(winRate(champ.wins, champ.losses)) >= 50
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       )}
                     >
-                      {winRate(champ.wins, champ.losses)}%
+                      {parseFloat(winRate(champ.wins, champ.losses)).toFixed(0)}
+                      %
                     </span>
                     <span className='text-xs text-muted-foreground ml-2'>
                       ({champ.wins}W{champ.losses}L)
@@ -123,16 +126,16 @@ export default function TopThreeChampionsOverview({
                   <div
                     className={clsx(
                       'text-xs text-muted-foreground',
-                      parseFloat(kdaRatio) >= 5
+                      parseFloat(kdaRatio) >= 5.0
                         ? 'text-orange-600 dark:text-orange-400'
-                        : parseFloat(kdaRatio) >= 4
+                        : parseFloat(kdaRatio) >= 4.0
                         ? 'text-blue-600 dark:text-blue-400'
-                        : parseFloat(kdaRatio) >= 3
+                        : parseFloat(kdaRatio) >= 3.0
                         ? 'text-green-600 dark:text-green-400'
                         : 'text-red-600 dark:text-red-400'
                     )}
                   >
-                    {parseFloat(kdaRatio).toFixed(1)} KDA
+                    {kdaRatio} KDA
                   </div>
                 </div>
               </div>

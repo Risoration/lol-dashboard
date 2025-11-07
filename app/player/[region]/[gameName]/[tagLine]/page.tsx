@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { searchPlayer } from '../../../../lib/actions/public-actions';
 import {
   Card,
@@ -43,11 +42,6 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             <CardTitle>Player Not Found</CardTitle>
             <CardDescription>{result.error}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Link href='/'>
-              <Button className='w-full'>Back to Home</Button>
-            </Link>
-          </CardContent>
         </Card>
       </div>
     );
@@ -58,11 +52,6 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   return (
     <div className='min-h-screen bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4'>
       <div className='max-w-5xl mx-auto space-y-6 py-8'>
-        {/* Back Button */}
-        <Link href='/'>
-          <Button variant='outline'>← Back to Home</Button>
-        </Link>
-
         {/* Player Header */}
         <Card className='m-lg'>
           <CardHeader>

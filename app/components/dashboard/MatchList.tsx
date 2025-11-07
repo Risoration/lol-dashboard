@@ -87,72 +87,76 @@ export default function MatchList({ matches, playerPuuid }: MatchListProps) {
     <div className='space-y-4'>
       {/* Winrate Summary */}
       <div className='bg-card border border-slate-200 dark:border-slate-700 rounded-lg p-4'>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+        <div className='grid grid-cols-2 md:grid-cols-2'>
           {/* Left: Summary section */}
-          <p className='text-sm font-medium text-muted-foreground'>
-            Game Summary
-          </p>
-          <div className='flex items-center gap-4 justify-between'>
-            {/* Donut */}
-            <div
-              className='relative shrink-0'
-              style={{ width: 56, height: 56 }}
-            >
+          <div className='flex flex-col items-center h-full'>
+            <p className='text-sm font-medium text-muted-foreground mb-2 text-center'>
+              Game Summary
+            </p>
+            <div className='flex items-center gap-4 justify-center h-full'>
+              {/* Donut */}
               <div
-                className='absolute inset-0 rounded-full'
-                style={{
-                  background: `conic-gradient(rgb(37,99,235) ${parseFloat(
-                    winrate
-                  )}%, rgb(220,38,38) 0)`,
-                }}
-              />
-              <div className='absolute inset-1 rounded-full bg-card flex items-center justify-center text-xs font-semibold'>
-                {parseFloat(winrate).toFixed(0)}%
+                className='relative shrink-0'
+                style={{ width: 56, height: 56 }}
+              >
+                <div
+                  className='absolute inset-0 rounded-full'
+                  style={{
+                    background: `conic-gradient(rgb(37,99,235) ${parseFloat(
+                      winrate
+                    )}%, rgb(220,38,38) 0)`,
+                  }}
+                />
+                <div className='absolute inset-1 rounded-full bg-card flex items-center justify-center text-xs font-semibold'>
+                  {parseFloat(winrate).toFixed(0)}%
+                </div>
               </div>
-            </div>
 
-            <div className='flex-1'>
-              <div className='flex justify-center gap-4'>
-                <div className='text-sm'>
-                  <div className='text-base font-semibold'>
-                    {totalGames} Games
+              <div className='flex-1 text-center'>
+                <div className='flex justify-center gap-4'>
+                  <div className='text-sm'>
+                    <div className='text-base font-semibold'>
+                      {totalGames} Games
+                    </div>
+                    <div className='text-muted-foreground text-xs'>
+                      <span className='text-blue-600 dark:text-blue-400 font-semibold'>
+                        {winLossData.wins}W
+                      </span>
+                      <span className='mx-1'> </span>
+                      <span className='text-red-600 dark:text-red-400 font-semibold'>
+                        {winLossData.losses}L
+                      </span>
+                    </div>
                   </div>
-                  <div className='text-muted-foreground text-xs'>
-                    <span className='text-blue-600 dark:text-blue-400 font-semibold'>
-                      {winLossData.wins}W
-                    </span>
-                    <span className='mx-1'> </span>
-                    <span className='text-red-600 dark:text-red-400 font-semibold'>
-                      {winLossData.losses}L
-                    </span>
+                  <div className='text-sm'>
+                    <div className='text-base font-semibold'>
+                      {overallKda} KDA
+                    </div>
+                    <div className='text-xs'>
+                      <span>{avgKills}</span>
+                      <span className='text-muted-foreground'> / </span>
+                      <span className='text-red-600 dark:text-red-400'>
+                        {avgDeaths}
+                      </span>
+                      <span className='text-muted-foreground'> / </span>
+                      <span>{avgAssists}</span>
+                    </div>
                   </div>
-                </div>
-                <div className='text-sm'>
-                  <div className='text-base font-semibold'>
-                    {overallKda} KDA
+                  <div className='text-right text-sm'>
+                    <div className='text-base font-semibold text-green-600 dark:text-green-400'>
+                      {aiScore}
+                    </div>
+                    <div className='text-xs text-muted-foreground'>
+                      AI-Score
+                    </div>
                   </div>
-                  <div className='text-xs'>
-                    <span>{avgKills}</span>
-                    <span className='text-muted-foreground'> / </span>
-                    <span className='text-red-600 dark:text-red-400'>
-                      {avgDeaths}
-                    </span>
-                    <span className='text-muted-foreground'> / </span>
-                    <span>{avgAssists}</span>
-                  </div>
-                </div>
-                <div className='text-right text-sm'>
-                  <div className='text-base font-semibold text-green-600 dark:text-green-400'>
-                    {aiScore}
-                  </div>
-                  <div className='text-xs text-muted-foreground'>AI-Score</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Right: Champion Played section */}
-          <div className='flex flex-col justify-end items-end'>
+          <div className='flex flex-col items-center h-full'>
             <p className='text-sm font-medium text-muted-foreground mb-2'>
               Champion Played
             </p>

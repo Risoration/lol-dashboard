@@ -7,13 +7,9 @@ import {
   CardTitle,
 } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
-import type { Match } from '../../lib/database/types';
 import { formatDistanceToNow } from 'date-fns';
 import { RiotApi } from '../../lib/riot/api';
 import type { Region } from '@/app/lib/riot/types';
-import Image from 'next/image';
-import { Avatar, AvatarImage } from '@/components/ui/avatar';
-import { AvatarFallback } from '@radix-ui/react-avatar';
 
 interface RecentMatchesProps {
   region: Region;

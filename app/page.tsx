@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getUser, getUserSummoners } from './lib/actions';
 import LinkAccountSection from './components/LinkAccountSection';
-import Navigation from './components/Navigation';
 
 export default async function Home() {
   const user = await getUser();
@@ -21,11 +20,8 @@ export default async function Home() {
 
   // Otherwise, show the link account page
   return (
-    <>
-      <Navigation />
-      <div className='flex min-h-screen items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 pt-16'>
-        <LinkAccountSection />
-      </div>
-    </>
+    <div className='flex min-h-screen items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900'>
+      <LinkAccountSection />
+    </div>
   );
 }
