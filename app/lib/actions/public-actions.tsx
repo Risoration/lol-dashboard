@@ -92,11 +92,11 @@ export async function searchPlayer(
     let matches: MatchDto[] = [];
     if (matchIds && matchIds.length > 0) {
       try {
-        // Use higher concurrency (10) for faster fetching - rate limiter will handle throttling
+        // Use lower concurrency (5) to avoid hitting rate limits
         matches = await riotApi.getMultipleMatches(
           validated.region as any,
           matchIds,
-          10
+          5
         );
         console.log('🔍 Search - Match details:', matches.length, 'matches');
       } catch (error) {

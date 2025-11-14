@@ -52,16 +52,40 @@ export function normalizeChampionName(championName: string): string {
   return normalized.replace(/\s+/g, '');
 }
 
+// Cache for champion image URLs to avoid repeated URL construction
+// Key format: "version:championName" to handle version changes
+const championImageUrlCache = new Map<string, string>();
+let cachedGameVersion: string | null = null;
+
 /**
  * Get champion image URL from Data Dragon
+ * Results are cached to avoid repeated URL construction
  */
 export function getChampionImageUrl(championName: string): string {
   const version = getGameVersion();
+
+  // Clear cache if game version changed
+  if (cachedGameVersion && cachedGameVersion !== version) {
+    championImageUrlCache.clear();
+  }
+  cachedGameVersion = version;
+
+  // Create cache key with version to ensure correctness
+  const cacheKey = `${version}:${championName}`;
+
+  // Check cache first
+  if (championImageUrlCache.has(cacheKey)) {
+    return championImageUrlCache.get(cacheKey)!;
+  }
+
+  // Construct URL
   const normalized = normalizeChampionName(championName);
-  console.log(
-    `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${normalized}.png`
-  );
-  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${normalized}.png`;
+  const url = `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${normalized}.png`;
+
+  // Cache the result
+  championImageUrlCache.set(cacheKey, url);
+
+  return url;
 }
 
 export function getProfileIcon(profileIconId: number) {

@@ -218,7 +218,7 @@ export default function DashboardContent({
       <RecentMatches
         matches={filteredData.matches}
         title='Recent Matches'
-        limit={20}
+        limit={100}
       />
 
       <MatchupSynergyDuoSection />

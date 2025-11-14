@@ -51,8 +51,10 @@ export default function DuoMatchHistoryDialog({
   const [matches, setMatches] = useState<DuoMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [playerChampionFilter, setPlayerChampionFilter] = useState<string>('ALL');
-  const [teammateChampionFilter, setTeammateChampionFilter] = useState<string>('ALL');
+  const [playerChampionFilter, setPlayerChampionFilter] =
+    useState<string>('ALL');
+  const [teammateChampionFilter, setTeammateChampionFilter] =
+    useState<string>('ALL');
 
   useEffect(() => {
     if (open && summonerId && teammatePuuid) {
@@ -64,14 +66,28 @@ export default function DuoMatchHistoryDialog({
     setLoading(true);
     setError(null);
     try {
+      console.log(
+        `DuoMatchHistoryDialog: Fetching match history for summonerId=${summonerId}, teammatePuuid=${teammatePuuid.substring(
+          0,
+          8
+        )}...`
+      );
       const result = await getDuoMatchHistory(summonerId, teammatePuuid);
-      if (result.success) {
+      console.log(`DuoMatchHistoryDialog: Result:`, result);
+      if ('success' in result && result.success) {
         setMatches(result.matches || []);
-      } else {
+        console.log(
+          `DuoMatchHistoryDialog: Set ${result.matches?.length || 0} matches`
+        );
+      } else if ('error' in result) {
+        console.error(`DuoMatchHistoryDialog: Error:`, result.error);
         setError(result.error || 'Failed to fetch match history');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch match history');
+      console.error(`DuoMatchHistoryDialog: Exception:`, err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch match history'
+      );
     } finally {
       setLoading(false);
     }
@@ -89,15 +105,48 @@ export default function DuoMatchHistoryDialog({
   // Filter matches
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
-      if (playerChampionFilter !== 'ALL' && match.playerChampion !== playerChampionFilter) {
+      if (
+        playerChampionFilter !== 'ALL' &&
+        match.playerChampion !== playerChampionFilter
+      ) {
         return false;
       }
-      if (teammateChampionFilter !== 'ALL' && match.teammateChampion !== teammateChampionFilter) {
+      if (
+        teammateChampionFilter !== 'ALL' &&
+        match.teammateChampion !== teammateChampionFilter
+      ) {
         return false;
       }
       return true;
     });
   }, [matches, playerChampionFilter, teammateChampionFilter]);
+
+  // Calculate winrate from filtered matches
+  const winrate = useMemo(() => {
+    if (filteredMatches.length === 0) return 0;
+    const wins = filteredMatches.filter((m) => m.win).length;
+    return Math.round((wins / filteredMatches.length) * 100);
+  }, [filteredMatches]);
+
+  // Generate dynamic winrate label based on filters
+  const winrateLabel = useMemo(() => {
+    const teammateDisplayName = teammateName.split('#')[0];
+    let label = `${winrate}% winrate with ${teammateName}`;
+
+    const conditions: string[] = [];
+    if (playerChampionFilter !== 'ALL') {
+      conditions.push(`you play ${playerChampionFilter}`);
+    }
+    if (teammateChampionFilter !== 'ALL') {
+      conditions.push(`${teammateDisplayName} plays ${teammateChampionFilter}`);
+    }
+
+    if (conditions.length > 0) {
+      label += ` when ${conditions.join(' and ')}`;
+    }
+
+    return label;
+  }, [winrate, teammateName, playerChampionFilter, teammateChampionFilter]);
 
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -119,8 +168,24 @@ export default function DuoMatchHistoryDialog({
         <DialogHeader>
           <DialogTitle>Match History with {teammateName}</DialogTitle>
           <DialogDescription>
-            {filteredMatches.length} match{filteredMatches.length !== 1 ? 'es' : ''} found
+            {filteredMatches.length} match
+            {filteredMatches.length !== 1 ? 'es' : ''} found
           </DialogDescription>
+          {filteredMatches.length > 0 && (
+            <div className='mt-2'>
+              <div className='flex items-center gap-2'>
+                <Badge
+                  variant={winrate >= 50 ? 'victory' : 'defeat'}
+                  className='text-sm font-semibold'
+                >
+                  {winrate}%
+                </Badge>
+                <span className='text-sm text-muted-foreground'>
+                  {winrateLabel}
+                </span>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         {/* Filters */}
@@ -190,9 +255,7 @@ export default function DuoMatchHistoryDialog({
             Loading match history...
           </div>
         ) : error ? (
-          <div className='text-center py-8 text-destructive'>
-            {error}
-          </div>
+          <div className='text-center py-8 text-destructive'>{error}</div>
         ) : filteredMatches.length === 0 ? (
           <div className='text-center py-8 text-muted-foreground'>
             No matches found matching the selected filters.
@@ -200,12 +263,20 @@ export default function DuoMatchHistoryDialog({
         ) : (
           <div className='space-y-2 max-h-[60vh] overflow-y-auto'>
             {filteredMatches.map((match) => {
-              const playerKDA = match.playerDeaths === 0
-                ? match.playerKills + match.playerAssists
-                : ((match.playerKills + match.playerAssists) / match.playerDeaths).toFixed(2);
-              const teammateKDA = match.teammateDeaths === 0
-                ? match.teammateKills + match.teammateAssists
-                : ((match.teammateKills + match.teammateAssists) / match.teammateDeaths).toFixed(2);
+              const playerKDA =
+                match.playerDeaths === 0
+                  ? match.playerKills + match.playerAssists
+                  : (
+                      (match.playerKills + match.playerAssists) /
+                      match.playerDeaths
+                    ).toFixed(2);
+              const teammateKDA =
+                match.teammateDeaths === 0
+                  ? match.teammateKills + match.teammateAssists
+                  : (
+                      (match.teammateKills + match.teammateAssists) /
+                      match.teammateDeaths
+                    ).toFixed(2);
 
               return (
                 <div
@@ -230,15 +301,36 @@ export default function DuoMatchHistoryDialog({
                       <span className='text-xs font-medium mt-1'>
                         {match.playerChampion}
                       </span>
-                      <div className={cn('text-xs mt-1', getKDAColor(match.playerKills, match.playerDeaths, match.playerAssists))}>
-                        {match.playerKills}/{match.playerDeaths}/{match.playerAssists}
+                      <div
+                        className={cn(
+                          'text-xs mt-1',
+                          getKDAColor(
+                            match.playerKills,
+                            match.playerDeaths,
+                            match.playerAssists
+                          )
+                        )}
+                      >
+                        {match.playerKills}/{match.playerDeaths}/
+                        {match.playerAssists}
                       </div>
-                      <div className={cn('text-xs', getKDAColor(match.playerKills, match.playerDeaths, match.playerAssists))}>
+                      <div
+                        className={cn(
+                          'text-xs',
+                          getKDAColor(
+                            match.playerKills,
+                            match.playerDeaths,
+                            match.playerAssists
+                          )
+                        )}
+                      >
                         {playerKDA} KDA
                       </div>
                     </div>
 
-                    <span className='text-xl font-bold text-muted-foreground'>+</span>
+                    <span className='text-xl font-bold text-muted-foreground'>
+                      +
+                    </span>
 
                     {/* Teammate Champion */}
                     <div className='flex flex-col items-center'>
@@ -252,10 +344,29 @@ export default function DuoMatchHistoryDialog({
                       <span className='text-xs font-medium mt-1'>
                         {match.teammateChampion}
                       </span>
-                      <div className={cn('text-xs mt-1', getKDAColor(match.teammateKills, match.teammateDeaths, match.teammateAssists))}>
-                        {match.teammateKills}/{match.teammateDeaths}/{match.teammateAssists}
+                      <div
+                        className={cn(
+                          'text-xs mt-1',
+                          getKDAColor(
+                            match.teammateKills,
+                            match.teammateDeaths,
+                            match.teammateAssists
+                          )
+                        )}
+                      >
+                        {match.teammateKills}/{match.teammateDeaths}/
+                        {match.teammateAssists}
                       </div>
-                      <div className={cn('text-xs', getKDAColor(match.teammateKills, match.teammateDeaths, match.teammateAssists))}>
+                      <div
+                        className={cn(
+                          'text-xs',
+                          getKDAColor(
+                            match.teammateKills,
+                            match.teammateDeaths,
+                            match.teammateAssists
+                          )
+                        )}
+                      >
                         {teammateKDA} KDA
                       </div>
                     </div>
@@ -286,4 +397,3 @@ export default function DuoMatchHistoryDialog({
     </Dialog>
   );
 }
-

@@ -35,8 +35,7 @@ export default function MatchesContent({
     <RecentMatches
       matches={filteredMatches}
       title={`Matches (${filteredMatches.length})`}
-      limit={100}
+      limit={20}
     />
   );
 }
-

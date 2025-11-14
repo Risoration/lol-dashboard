@@ -310,7 +310,7 @@ export class RiotApi {
   async getMultipleMatches(
     region: Region,
     matchIds: string[],
-    concurrency: number = 10
+    concurrency: number = 5
   ): Promise<MatchDto[]> {
     //validate concurrency
     if (concurrency < 1 || concurrency > 10) {
@@ -321,26 +321,64 @@ export class RiotApi {
     }
 
     const results: MatchDto[] = [];
+    const totalBatches = Math.ceil(matchIds.length / concurrency);
 
-    //fetch matches in batches
+    console.log(
+      `getMultipleMatches: Starting to fetch ${matchIds.length} matches in ${totalBatches} batches (concurrency: ${concurrency})`
+    );
+
+    //fetch matches in batches with better rate limit handling
     for (let i = 0; i < matchIds.length; i += concurrency) {
+      const batchNumber = Math.floor(i / concurrency) + 1;
       //get batch of match ids
       const batch = matchIds.slice(i, i + concurrency);
 
-      //fetch match details for batch
-      const batchResults = await Promise.all(
+      console.log(
+        `getMultipleMatches: Fetching batch ${batchNumber}/${totalBatches} (${batch.length} matches, ${results.length}/${matchIds.length} total fetched)`
+      );
+
+      //fetch match details for batch with error handling
+      const batchResults = await Promise.allSettled(
         batch.map((id) => this.getMatchDetails(region, id))
       );
 
-      //add batch results to results array
-      results.push(...batchResults);
+      // Filter out any failed requests and extract successful results
+      const validResults = batchResults
+        .filter(
+          (result): result is PromiseFulfilledResult<MatchDto> =>
+            result.status === 'fulfilled' &&
+            result.value !== null &&
+            result.value !== undefined
+        )
+        .map((result) => result.value);
 
-      // Small delay only if we have more batches to process
-      // The rate limiter will handle most rate limiting, so we can reduce this delay
+      // Log any failures for debugging
+      const failures = batchResults.filter(
+        (result) => result.status === 'rejected'
+      );
+      if (failures.length > 0) {
+        console.warn(
+          `getMultipleMatches: Batch ${batchNumber}: ${failures.length} matches failed to fetch`
+        );
+      }
+
+      //add batch results to results array
+      results.push(...validResults);
+
+      console.log(
+        `getMultipleMatches: Batch ${batchNumber} complete: ${validResults.length} matches fetched, ${results.length}/${matchIds.length} total`
+      );
+
+      // Add delay between batches to avoid hitting rate limits
+      // Increase delay to 200ms to be more conservative with rate limits
       if (i + concurrency < matchIds.length) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
+
+    console.log(
+      `getMultipleMatches: Completed fetching ${results.length}/${matchIds.length} matches`
+    );
 
     return results;
   }
@@ -357,6 +395,20 @@ export class RiotApi {
     match: MatchDto,
     puuid: string
   ): ParticipantDto | undefined {
-    return match.info.participants.find((p) => p.puuid == puuid);
+    // Use strict equality and also log if not found for debugging
+    const participant = match.info.participants.find((p) => p.puuid === puuid);
+    if (!participant && match.info.participants.length > 0) {
+      // Log first few characters for debugging (don't log full PUUID for security)
+      console.log(
+        `getPlayerParticipant: PUUID mismatch. Looking for: ${puuid.substring(
+          0,
+          8
+        )}..., found participants with PUUIDs: ${match.info.participants
+          .slice(0, 2)
+          .map((p) => p.puuid.substring(0, 8) + '...')
+          .join(', ')}`
+      );
+    }
+    return participant;
   }
 }

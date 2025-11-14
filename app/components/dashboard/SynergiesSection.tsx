@@ -88,7 +88,7 @@ export default function SynergiesSection({
   // Sort synergies: best = highest winrate, worst = lowest winrate
   // Filter to only show synergies with at least 2 games
   let allFiltered = synergies
-    .filter((s) => s.games >= 2)
+    .filter((s) => s.games >= 3)
     .filter((s) => {
       if (
         playerChampionFilter !== 'ALL' &&

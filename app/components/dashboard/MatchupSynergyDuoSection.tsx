@@ -18,9 +18,25 @@ export default function MatchupSynergyDuoSection() {
   const [duos, setDuos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
+
+  // Defer loading until after initial render to improve perceived performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShouldLoad(true);
+    }, 100); // Small delay to let page render first
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
+      // Wait for deferral and summoners to be loaded
+      if (!shouldLoad || summoners.length === 0) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -35,6 +51,10 @@ export default function MatchupSynergyDuoSection() {
         return;
       }
 
+      console.log(
+        `[MatchupSynergyDuoSection] Starting fetch - selectedSummonerId: ${selectedSummonerId}, queueType: ${filters.queueType}`
+      );
+
       try {
         // Fetch all three stats in parallel with queue type filter
         const [matchupsResult, synergiesResult, duosResult] = await Promise.all(
@@ -45,21 +65,25 @@ export default function MatchupSynergyDuoSection() {
           ]
         );
 
-        if (matchupsResult.success) {
+        console.log(
+          `[MatchupSynergyDuoSection] Completed fetch for ${selectedSummonerId}`
+        );
+
+        if ('success' in matchupsResult && matchupsResult.success) {
           setMatchups(matchupsResult.matchups || []);
-        } else {
+        } else if ('error' in matchupsResult) {
           console.error('Matchup stats error:', matchupsResult.error);
         }
 
-        if (synergiesResult.success) {
+        if ('success' in synergiesResult && synergiesResult.success) {
           setSynergies(synergiesResult.synergies || []);
-        } else {
+        } else if ('error' in synergiesResult) {
           console.error('Synergy stats error:', synergiesResult.error);
         }
 
-        if (duosResult.success) {
+        if ('success' in duosResult && duosResult.success) {
           setDuos(duosResult.duos || []);
-        } else {
+        } else if ('error' in duosResult) {
           console.error('Duo stats error:', duosResult.error);
         }
       } catch (err) {
@@ -73,7 +97,7 @@ export default function MatchupSynergyDuoSection() {
     }
 
     fetchData();
-  }, [filters.selectedSummonerId, filters.queueType, summoners]);
+  }, [shouldLoad, filters.selectedSummonerId, filters.queueType, summoners]);
 
   if (loading) {
     return (
@@ -106,13 +130,13 @@ export default function MatchupSynergyDuoSection() {
         <MatchupsSection
           matchups={matchups}
           title='Best Matchups'
-          limit={5}
+          limit={3}
           showBest={true}
         />
         <MatchupsSection
           matchups={matchups}
           title='Worst Matchups'
-          limit={5}
+          limit={3}
           showBest={false}
         />
       </div>

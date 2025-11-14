@@ -21,17 +21,21 @@ export default function SynergyPageContent() {
 
   useEffect(() => {
     async function fetchData() {
-      setLoading(true);
-      setError(null);
-
       // Wait for summoners to be loaded
-      if (!summoners || summoners.length === 0) {
+      if (summoners.length === 0) {
         setLoading(false);
         return;
       }
 
+      setLoading(true);
+      setError(null);
+
       // Get the selected summoner or aggregate all
       const selectedSummonerId = filters.selectedSummonerId;
+
+      console.log(
+        `[SynergyPageContent] Starting fetch - selectedSummonerId: ${selectedSummonerId}, total summoners: ${summoners.length}, queueType: ${filters.queueType}`
+      );
 
       if (selectedSummonerId) {
         // Fetch for single summoner
@@ -43,98 +47,124 @@ export default function SynergyPageContent() {
               getDuoStats(selectedSummonerId, filters.queueType),
             ]);
 
-          if (matchupsResult.success) {
+          console.log('Matchup result:', matchupsResult);
+          console.log('Synergy result:', synergiesResult);
+          console.log('Duo result:', duosResult);
+
+          if ('success' in matchupsResult && matchupsResult.success) {
+            console.log(
+              `Setting ${matchupsResult.matchups?.length || 0} matchups`
+            );
             setMatchups(matchupsResult.matchups || []);
-          } else {
+          } else if ('error' in matchupsResult) {
             console.error('Matchup stats error:', matchupsResult.error);
             setMatchups([]);
+            setError(matchupsResult.error || 'Failed to load matchup stats');
           }
-          if (synergiesResult.success) {
+          if ('success' in synergiesResult && synergiesResult.success) {
+            console.log(
+              `Setting ${synergiesResult.synergies?.length || 0} synergies`
+            );
             setSynergies(synergiesResult.synergies || []);
-          } else {
+          } else if ('error' in synergiesResult) {
             console.error('Synergy stats error:', synergiesResult.error);
             setSynergies([]);
+            if (!error)
+              setError(synergiesResult.error || 'Failed to load synergy stats');
           }
-          if (duosResult.success) {
+          if ('success' in duosResult && duosResult.success) {
+            console.log(`Setting ${duosResult.duos?.length || 0} duos`);
             setDuos(duosResult.duos || []);
-          } else {
+          } else if ('error' in duosResult) {
             console.error('Duo stats error:', duosResult.error);
             setDuos([]);
-          }
-
-          // Set error if all requests failed
-          if (
-            !matchupsResult.success &&
-            !synergiesResult.success &&
-            !duosResult.success
-          ) {
-            setError(
-              matchupsResult.error ||
-                synergiesResult.error ||
-                duosResult.error ||
-                'Failed to load statistics'
-            );
+            if (!error)
+              setError(duosResult.error || 'Failed to load duo stats');
           }
         } catch (err) {
           console.error('Error fetching stats:', err);
           setError(
             err instanceof Error ? err.message : 'Failed to load statistics'
           );
-          setMatchups([]);
-          setSynergies([]);
-          setDuos([]);
         } finally {
           setLoading(false);
         }
       } else {
         // Aggregate across all accounts
+        console.log(
+          `[SynergyPageContent] Aggregating across ${summoners.length} accounts`
+        );
         try {
           const allMatchups: any[] = [];
           const allSynergies: any[] = [];
           const allDuos: any[] = [];
           const errors: string[] = [];
 
-          for (const summoner of summoners) {
-            try {
-              const [matchupsResult, synergiesResult, duosResult] =
-                await Promise.all([
-                  getMatchupStats(summoner.id, filters.queueType),
-                  getSynergyStats(summoner.id, filters.queueType),
-                  getDuoStats(summoner.id, filters.queueType),
-                ]);
+          for (let i = 0; i < summoners.length; i++) {
+            const summoner = summoners[i];
+            console.log(
+              `[SynergyPageContent] Fetching stats for summoner ${i + 1}/${
+                summoners.length
+              }: ${summoner.id}`
+            );
+            const [matchupsResult, synergiesResult, duosResult] =
+              await Promise.all([
+                getMatchupStats(summoner.id, filters.queueType),
+                getSynergyStats(summoner.id, filters.queueType),
+                getDuoStats(summoner.id, filters.queueType),
+              ]);
 
-              if (matchupsResult.success) {
-                allMatchups.push(...(matchupsResult.matchups || []));
-              } else {
-                console.error(
-                  `Matchup stats error for ${summoner.id}:`,
-                  matchupsResult.error
-                );
-                if (matchupsResult.error) errors.push(matchupsResult.error);
-              }
-              if (synergiesResult.success) {
-                allSynergies.push(...(synergiesResult.synergies || []));
-              } else {
-                console.error(
-                  `Synergy stats error for ${summoner.id}:`,
-                  synergiesResult.error
-                );
-                if (synergiesResult.error) errors.push(synergiesResult.error);
-              }
-              if (duosResult.success) {
-                allDuos.push(...(duosResult.duos || []));
-              } else {
-                console.error(
-                  `Duo stats error for ${summoner.id}:`,
-                  duosResult.error
-                );
-                if (duosResult.error) errors.push(duosResult.error);
-              }
-            } catch (err) {
-              console.error(`Error fetching stats for ${summoner.id}:`, err);
-              const errorMsg =
-                err instanceof Error ? err.message : 'Failed to fetch stats';
-              errors.push(errorMsg);
+            console.log(
+              `Summoner ${summoner.id} - Matchup result:`,
+              matchupsResult
+            );
+            console.log(
+              `Summoner ${summoner.id} - Synergy result:`,
+              synergiesResult
+            );
+            console.log(`Summoner ${summoner.id} - Duo result:`, duosResult);
+
+            if ('success' in matchupsResult && matchupsResult.success) {
+              console.log(
+                `Adding ${
+                  matchupsResult.matchups?.length || 0
+                } matchups from summoner ${summoner.id}`
+              );
+              allMatchups.push(...(matchupsResult.matchups || []));
+            } else if ('error' in matchupsResult) {
+              console.error(
+                `Matchup stats error for ${summoner.id}:`,
+                matchupsResult.error
+              );
+              if (matchupsResult.error) errors.push(matchupsResult.error);
+            }
+            if ('success' in synergiesResult && synergiesResult.success) {
+              console.log(
+                `Adding ${
+                  synergiesResult.synergies?.length || 0
+                } synergies from summoner ${summoner.id}`
+              );
+              allSynergies.push(...(synergiesResult.synergies || []));
+            } else if ('error' in synergiesResult) {
+              console.error(
+                `Synergy stats error for ${summoner.id}:`,
+                synergiesResult.error
+              );
+              if (synergiesResult.error) errors.push(synergiesResult.error);
+            }
+            if ('success' in duosResult && duosResult.success) {
+              console.log(
+                `Adding ${duosResult.duos?.length || 0} duos from summoner ${
+                  summoner.id
+                }`
+              );
+              allDuos.push(...(duosResult.duos || []));
+            } else if ('error' in duosResult) {
+              console.error(
+                `Duo stats error for ${summoner.id}:`,
+                duosResult.error
+              );
+              if (duosResult.error) errors.push(duosResult.error);
             }
           }
 
@@ -204,24 +234,11 @@ export default function SynergyPageContent() {
             }
           });
           setDuos(Array.from(duoMap.values()));
-
-          // Set error if all requests failed
-          if (
-            allMatchups.length === 0 &&
-            allSynergies.length === 0 &&
-            allDuos.length === 0 &&
-            errors.length > 0
-          ) {
-            setError(errors[0] || 'Failed to load statistics');
-          }
         } catch (err) {
           console.error('Error fetching stats:', err);
           setError(
             err instanceof Error ? err.message : 'Failed to load statistics'
           );
-          setMatchups([]);
-          setSynergies([]);
-          setDuos([]);
         } finally {
           setLoading(false);
         }
@@ -230,6 +247,14 @@ export default function SynergyPageContent() {
 
     fetchData();
   }, [filters.selectedSummonerId, filters.queueType, summoners]);
+
+  if (summoners.length === 0) {
+    return (
+      <div className='text-center py-12 text-muted-foreground'>
+        <p>No summoners found. Please link an account first.</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -245,7 +270,7 @@ export default function SynergyPageContent() {
   if (error) {
     return (
       <div className='text-center py-12 text-destructive'>
-        <p className='font-semibold'>Error loading statistics: {error}</p>
+        <p>Error loading statistics: {error}</p>
         <p className='text-sm text-muted-foreground mt-2'>
           This feature requires fetching full match data from Riot API. Please
           ensure you have recent matches synced.
@@ -254,11 +279,15 @@ export default function SynergyPageContent() {
     );
   }
 
-  // Show message if no summoners are available
-  if (!summoners || summoners.length === 0) {
+  // Check if all data is empty
+  if (matchups.length === 0 && synergies.length === 0 && duos.length === 0) {
     return (
       <div className='text-center py-12 text-muted-foreground'>
-        <p>No summoners found. Please link a summoner account first.</p>
+        <p>No matchup, synergy, or duo data available.</p>
+        <p className='text-sm mt-2'>
+          This feature requires match data. Please refresh your account data to
+          sync matches from Riot API.
+        </p>
       </div>
     );
   }
@@ -275,13 +304,13 @@ export default function SynergyPageContent() {
           <MatchupsSection
             matchups={matchups}
             title='Best Matchups'
-            limit={10}
+            limit={3}
             showBest={true}
           />
           <MatchupsSection
             matchups={matchups}
             title='Worst Matchups'
-            limit={10}
+            limit={3}
             showBest={false}
           />
         </div>
@@ -297,13 +326,13 @@ export default function SynergyPageContent() {
           <SynergiesSection
             synergies={synergies}
             title='Best Synergies'
-            limit={10}
+            limit={5}
             showBest={true}
           />
           <SynergiesSection
             synergies={synergies}
             title='Worst Synergies'
-            limit={10}
+            limit={5}
             showBest={false}
           />
         </div>
@@ -315,7 +344,7 @@ export default function SynergyPageContent() {
         <p className='text-muted-foreground mb-4'>
           Your win rates when playing with specific summoners
         </p>
-        <DuosSection duos={duos} title='Best Duos' limit={20} />
+        <DuosSection duos={duos} title='Best Duos' limit={100} />
       </div>
     </div>
   );

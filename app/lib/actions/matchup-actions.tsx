@@ -44,33 +44,81 @@ interface DuoStat {
 }
 
 /**
- * Fetch full match data with caching
- * Cache key is based on region and sorted match IDs
- * TTL: 10 minutes (match data doesn't change once complete)
+ * Fetch full match data with per-match caching
+ * Each match is cached individually to maximize cache hits
+ * TTL: 24 hours (match data never changes once complete)
  */
 async function getCachedMatches(
   region: Region,
   matchIds: string[]
 ): Promise<MatchDto[]> {
-  // Sort match IDs to ensure consistent cache key
-  const sortedMatchIds = [...matchIds].sort();
-  const cacheKey = `matches:${region}:${sortedMatchIds.join(',')}`;
-
-  // Check cache first
-  const cached = cache.get<MatchDto[]>(cacheKey);
-  if (cached) {
-    return cached;
+  if (matchIds.length === 0) {
+    return [];
   }
 
-  // Fetch from API
-  // Use higher concurrency (10) for faster fetching - rate limiter will handle throttling
-  const riotApi = new RiotApi();
-  const matches = await riotApi.getMultipleMatches(region, matchIds, 10);
+  const results: MatchDto[] = [];
+  const uncachedMatchIds: string[] = [];
 
-  // Cache for 10 minutes
-  cache.set(cacheKey, matches, 10 * 60 * 1000);
+  // Check cache for each match individually
+  for (const matchId of matchIds) {
+    const cacheKey = `match:${region}:${matchId}`;
+    const cached = cache.get<MatchDto>(cacheKey);
+    if (cached) {
+      results.push(cached);
+    } else {
+      uncachedMatchIds.push(matchId);
+    }
+  }
 
-  return matches;
+  const cachedCount = results.length;
+  const uncachedCount = uncachedMatchIds.length;
+
+  console.log(
+    `getCachedMatches: ${cachedCount} cached, ${uncachedCount} need fetching`
+  );
+
+  // If all matches are cached, return immediately
+  if (uncachedMatchIds.length === 0) {
+    // Sort results to match original order
+    const matchMap = new Map(results.map((m) => [m.metadata.matchId, m]));
+    return matchIds.map((id) => matchMap.get(id)!).filter(Boolean);
+  }
+
+  // Fetch only uncached matches from API
+  // Use lower concurrency (3) to avoid hitting rate limits
+  try {
+    const riotApi = new RiotApi();
+    // Reduce concurrency to 3 to be more conservative with rate limits
+    const fetchedMatches = await riotApi.getMultipleMatches(
+      region,
+      uncachedMatchIds,
+      3
+    );
+
+    // Cache each match individually for 24 hours (match data never changes)
+    for (const match of fetchedMatches) {
+      const cacheKey = `match:${region}:${match.metadata.matchId}`;
+      cache.set(cacheKey, match, 24 * 60 * 60 * 1000); // 24 hours
+    }
+
+    console.log(
+      `getCachedMatches: Fetched ${fetchedMatches.length} matches from API`
+    );
+
+    // Combine cached and fetched matches
+    results.push(...fetchedMatches);
+
+    // Sort results to match original order
+    const matchMap = new Map(results.map((m) => [m.metadata.matchId, m]));
+    return matchIds.map((id) => matchMap.get(id)!).filter(Boolean);
+  } catch (error) {
+    console.error(`getCachedMatches: Error fetching matches:`, error);
+    // Return cached matches even if fetching fails
+    const matchMap = new Map(results.map((m) => [m.metadata.matchId, m]));
+    return matchIds
+      .map((id) => matchMap.get(id))
+      .filter((m): m is MatchDto => m !== undefined);
+  }
 }
 
 /**
@@ -95,8 +143,8 @@ async function getCachedAccountByPuuid(
     const riotApi = new RiotApi();
     const account = await riotApi.getAccountByPuuid(region, puuid);
 
-    // Cache for 1 hour
-    cache.set(cacheKey, account, 60 * 60 * 1000);
+    // Cache for 24 hours (account info changes infrequently)
+    cache.set(cacheKey, account, 24 * 60 * 60 * 1000);
 
     return account;
   } catch (error) {
@@ -122,6 +170,26 @@ export async function getMatchupStats(
     return { error: 'Unauthorised' };
   }
 
+  // Check cache for computed stats (30 minute TTL)
+  const cacheKey = `matchupStats:${summonerId}:${queueType || 'ALL'}`;
+  const cached = cache.get<{ success: true; matchups: MatchupStat[] }>(
+    cacheKey
+  );
+  if (cached) {
+    console.log(
+      `[getMatchupStats] Cache HIT for ${summonerId}:${
+        queueType || 'ALL'
+      } - returning ${cached.matchups.length} matchups`
+    );
+    return cached;
+  }
+
+  console.log(
+    `[getMatchupStats] Cache MISS for ${summonerId}:${
+      queueType || 'ALL'
+    } - fetching from API`
+  );
+
   // Verify ownership
   const { data: summoner, error: summonerError } = await supabase
     .from('summoners')
@@ -146,33 +214,75 @@ export async function getMatchupStats(
   }
 
   if (matches.length === 0) {
-    return { success: true, matchups: [] };
+    const result = { success: true, matchups: [] };
+    // Cache empty result for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   }
+
+  // Limit to last 100 matches to reduce API calls
+  // Match data is ordered by game_creation DESC, so first 100 are most recent
+  const limitedMatches = matches.slice(0, 100);
 
   try {
     const matchupMap = new Map<string, MatchupStat>();
 
     // Fetch full match data for each match (with caching)
-    const matchIds = matches.map((m) => m.match_id);
+    // Limit to last 100 matches to reduce API calls
+    const matchIds = limitedMatches.map((m) => m.match_id);
+    console.log(
+      `getMatchupStats: Processing ${matchIds.length} matches (limited from ${matches.length} total) for summoner ${summonerId}`
+    );
     let fullMatches = await getCachedMatches(summoner.region, matchIds);
+    console.log(
+      `getMatchupStats: Retrieved ${fullMatches.length} full matches`
+    );
 
     // Filter by queue type if specified
     if (queueType && queueType !== 'ALL') {
       const queueIds = getQueueIdsForQueueType(queueType);
       if (queueIds) {
+        const beforeFilter = fullMatches.length;
         fullMatches = fullMatches.filter((m) =>
           queueIds.includes(m.info.queueId)
+        );
+        console.log(
+          `getMatchupStats: Filtered to ${fullMatches.length} matches (from ${beforeFilter}) for queue type ${queueType}`
         );
       }
     }
 
+    let processedMatches = 0;
+    let skippedNoParticipant = 0;
+    let skippedNoOpponent = 0;
+
+    console.log(
+      `getMatchupStats: Looking for PUUID: ${summoner.puuid.substring(0, 8)}...`
+    );
     for (const match of fullMatches) {
       const playerParticipant = RiotApi.getPlayerParticipant(
         match,
         summoner.puuid
       );
 
-      if (!playerParticipant) continue;
+      if (!playerParticipant) {
+        skippedNoParticipant++;
+        // Log first match's participants for debugging
+        if (skippedNoParticipant === 1) {
+          const participantPuuid = match.info.participants[0]?.puuid;
+          console.log(
+            `getMatchupStats: First match participant PUUID: ${participantPuuid?.substring(
+              0,
+              8
+            )}...`
+          );
+          console.log(
+            `getMatchupStats: All participant PUUIDs in first match:`,
+            match.info.participants.map((p) => p.puuid.substring(0, 8) + '...')
+          );
+        }
+        continue;
+      }
 
       const playerChampionId = playerParticipant.championId;
       const playerChampionName = playerParticipant.championName;
@@ -194,7 +304,12 @@ export async function getMatchupStats(
           (p) => p.teamId !== playerTeamId && p.championId
         );
 
-      if (!enemyParticipant) continue;
+      if (!enemyParticipant) {
+        skippedNoOpponent++;
+        continue;
+      }
+
+      processedMatches++;
 
       const key = `${playerChampionId}-${enemyParticipant.championId}`;
       const existing = matchupMap.get(key);
@@ -224,7 +339,14 @@ export async function getMatchupStats(
       (a, b) => b.games - a.games
     );
 
-    return { success: true, matchups };
+    console.log(
+      `getMatchupStats: Processed ${processedMatches} matches, skipped ${skippedNoParticipant} (no participant), ${skippedNoOpponent} (no opponent)`
+    );
+    console.log(`getMatchupStats: Computed ${matchups.length} unique matchups`);
+    const result = { success: true, matchups };
+    // Cache computed stats for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   } catch (error) {
     console.error('Error fetching matchup stats:', error);
     return {
@@ -252,6 +374,26 @@ export async function getSynergyStats(
     return { error: 'Unauthorised' };
   }
 
+  // Check cache for computed stats (30 minute TTL)
+  const cacheKey = `synergyStats:${summonerId}:${queueType || 'ALL'}`;
+  const cached = cache.get<{ success: true; synergies: SynergyStat[] }>(
+    cacheKey
+  );
+  if (cached) {
+    console.log(
+      `[getSynergyStats] Cache HIT for ${summonerId}:${
+        queueType || 'ALL'
+      } - returning ${cached.synergies.length} synergies`
+    );
+    return cached;
+  }
+
+  console.log(
+    `[getSynergyStats] Cache MISS for ${summonerId}:${
+      queueType || 'ALL'
+    } - fetching from API`
+  );
+
   // Verify ownership
   const { data: summoner, error: summonerError } = await supabase
     .from('summoners')
@@ -276,33 +418,74 @@ export async function getSynergyStats(
   }
 
   if (matches.length === 0) {
-    return { success: true, synergies: [] };
+    const result = { success: true, synergies: [] };
+    // Cache empty result for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   }
+
+  // Limit to last 100 matches to reduce API calls
+  const limitedMatches = matches.slice(0, 100);
 
   try {
     const synergyMap = new Map<string, SynergyStat>();
 
-    const matchIds = matches.map((m) => m.match_id);
+    const matchIds = limitedMatches.map((m) => m.match_id);
+    console.log(
+      `getSynergyStats: Processing ${matchIds.length} matches (limited from ${matches.length} total) for summoner ${summonerId}`
+    );
     let fullMatches = await getCachedMatches(summoner.region, matchIds);
+    console.log(
+      `getSynergyStats: Retrieved ${fullMatches.length} full matches`
+    );
 
     // Filter by queue type if specified
     if (queueType && queueType !== 'ALL') {
       const queueIds = getQueueIdsForQueueType(queueType);
       if (queueIds) {
+        const beforeFilter = fullMatches.length;
         fullMatches = fullMatches.filter((m) =>
           queueIds.includes(m.info.queueId)
+        );
+        console.log(
+          `getSynergyStats: Filtered to ${fullMatches.length} matches (from ${beforeFilter}) for queue type ${queueType}`
         );
       }
     }
 
+    let processedMatches = 0;
+    let skippedNoParticipant = 0;
+    let totalSynergies = 0;
+
+    console.log(
+      `getSynergyStats: Looking for PUUID: ${summoner.puuid.substring(0, 8)}...`
+    );
     for (const match of fullMatches) {
       const playerParticipant = RiotApi.getPlayerParticipant(
         match,
         summoner.puuid
       );
 
-      if (!playerParticipant) continue;
+      if (!playerParticipant) {
+        skippedNoParticipant++;
+        // Log first match's participants for debugging
+        if (skippedNoParticipant === 1) {
+          const participantPuuid = match.info.participants[0]?.puuid;
+          console.log(
+            `getSynergyStats: First match participant PUUID: ${participantPuuid?.substring(
+              0,
+              8
+            )}...`
+          );
+          console.log(
+            `getSynergyStats: All participant PUUIDs in first match:`,
+            match.info.participants.map((p) => p.puuid.substring(0, 8) + '...')
+          );
+        }
+        continue;
+      }
 
+      processedMatches++;
       const playerChampionId = playerParticipant.championId;
       const playerChampionName = playerParticipant.championName;
       const playerTeamId = playerParticipant.teamId;
@@ -314,6 +497,7 @@ export async function getSynergyStats(
       );
 
       for (const teammate of teammates) {
+        totalSynergies++;
         // Use individualPosition for role, fallback to teamPosition
         const teammateRole =
           teammate.individualPosition !== 'NONE'
@@ -354,7 +538,16 @@ export async function getSynergyStats(
       (a, b) => b.games - a.games
     );
 
-    return { success: true, synergies };
+    console.log(
+      `getSynergyStats: Processed ${processedMatches} matches, skipped ${skippedNoParticipant} (no participant), found ${totalSynergies} synergy entries`
+    );
+    console.log(
+      `getSynergyStats: Computed ${synergies.length} unique synergies`
+    );
+    const result = { success: true, synergies };
+    // Cache computed stats for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   } catch (error) {
     console.error('Error fetching synergy stats:', error);
     return {
@@ -382,6 +575,24 @@ export async function getDuoStats(
     return { error: 'Unauthorised' };
   }
 
+  // Check cache for computed stats (30 minute TTL)
+  const cacheKey = `duoStats:${summonerId}:${queueType || 'ALL'}`;
+  const cached = cache.get<{ success: true; duos: DuoStat[] }>(cacheKey);
+  if (cached) {
+    console.log(
+      `[getDuoStats] Cache HIT for ${summonerId}:${
+        queueType || 'ALL'
+      } - returning ${cached.duos.length} duos`
+    );
+    return cached;
+  }
+
+  console.log(
+    `[getDuoStats] Cache MISS for ${summonerId}:${
+      queueType || 'ALL'
+    } - fetching from API`
+  );
+
   // Verify ownership
   const { data: summoner, error: summonerError } = await supabase
     .from('summoners')
@@ -406,13 +617,22 @@ export async function getDuoStats(
   }
 
   if (matches.length === 0) {
-    return { success: true, duos: [] };
+    const result = { success: true, duos: [] };
+    // Cache empty result for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   }
+
+  // Limit to last 100 matches to reduce API calls
+  const limitedMatches = matches.slice(0, 100);
 
   try {
     const duoMap = new Map<string, DuoStat>();
 
-    const matchIds = matches.map((m) => m.match_id);
+    const matchIds = limitedMatches.map((m) => m.match_id);
+    console.log(
+      `getDuoStats: Processing ${matchIds.length} matches (limited from ${matches.length} total) for summoner ${summonerId}`
+    );
     let fullMatches = await getCachedMatches(summoner.region, matchIds);
 
     // Filter by queue type if specified
@@ -469,15 +689,77 @@ export async function getDuoStats(
       }
     }
 
-    // Fetch account information for all unique teammates
-    const accountPromises = Array.from(teammatePuuidSet).map((puuid) =>
-      getCachedAccountByPuuid(summoner.region, puuid).then((account) => ({
-        puuid,
-        account,
-      }))
+    // Fetch account information for unique teammates in batches to avoid rate limits
+    // Only fetch for top duos (by games played) to reduce API calls
+    const teammatePuuidArray = Array.from(teammatePuuidSet);
+    const accounts: Array<{ puuid: string; account: AccountDto | null }> = [];
+
+    // Sort duos by games played and only fetch account info for top 15
+    // Reduced from 30 to minimize API calls and avoid rate limits
+    const sortedDuos = Array.from(duoMap.values())
+      .sort((a, b) => b.games - a.games)
+      .slice(0, 15);
+    const topTeammatePuuidSet = new Set(sortedDuos.map((d) => d.teammatePuuid));
+    const puuidsToFetch = teammatePuuidArray.filter((puuid) =>
+      topTeammatePuuidSet.has(puuid)
     );
 
-    const accounts = await Promise.all(accountPromises);
+    console.log(
+      `getDuoStats: Fetching account info for ${puuidsToFetch.length} teammates (limited from ${teammatePuuidArray.length} total)`
+    );
+
+    // Account API shares rate limit with match API (100 requests per 2 minutes)
+    // After fetching 100 matches, we're likely at the rate limit
+    // Skip account fetching if we just fetched matches to avoid rate limits
+    // Account names will be fetched lazily when user clicks on a duo, or use fallback names
+    const shouldSkipAccountFetching = fullMatches.length >= 50; // If we processed many matches, skip account fetching
+
+    if (shouldSkipAccountFetching) {
+      console.log(
+        `getDuoStats: Skipping account fetching (processed ${fullMatches.length} matches, likely at rate limit). Duo stats will use fallback names.`
+      );
+      // Add null entries for all accounts - we'll use fallback names from match data
+      for (const puuid of puuidsToFetch) {
+        accounts.push({ puuid, account: null });
+      }
+    } else {
+      // Fetch accounts sequentially (one at a time) with delays
+      for (let i = 0; i < puuidsToFetch.length; i++) {
+        const puuid = puuidsToFetch[i];
+        console.log(
+          `getDuoStats: Fetching account ${i + 1}/${
+            puuidsToFetch.length
+          } for PUUID ${puuid.substring(0, 8)}...`
+        );
+
+        try {
+          const account = await getCachedAccountByPuuid(summoner.region, puuid);
+          accounts.push({ puuid, account });
+
+          console.log(
+            `getDuoStats: Account ${i + 1} fetched${
+              account ? ' successfully' : ' (not found)'
+            }, ${accounts.length}/${puuidsToFetch.length} total`
+          );
+        } catch (error) {
+          console.error(
+            `getDuoStats: Failed to fetch account ${i + 1}:`,
+            error instanceof Error ? error.message : error
+          );
+          accounts.push({ puuid, account: null });
+        }
+
+        // Add delay between each account call to avoid rate limits
+        // 2 second delay to be very conservative after match fetching
+        if (i < puuidsToFetch.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+    }
+
+    console.log(
+      `getDuoStats: Completed fetching ${accounts.length} account lookups`
+    );
 
     // Update duo names with Riot IDs
     for (const { puuid, account } of accounts) {
@@ -508,7 +790,10 @@ export async function getDuoStats(
       .filter((d) => d.games >= 2) // Only show duos with 2+ games
       .sort((a, b) => b.games - a.games);
 
-    return { success: true, duos };
+    const result = { success: true, duos };
+    // Cache computed stats for 30 minutes
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
   } catch (error) {
     console.error('Error fetching duo stats:', error);
     return {
@@ -563,11 +848,39 @@ export async function getDuoMatchHistory(
 
   try {
     const matchIds = matches.map((m) => m.match_id);
+
+    if (matchIds.length === 0) {
+      console.log('getDuoMatchHistory: No match IDs found in database');
+      return { success: true, matches: [] };
+    }
+
+    console.log(
+      `getDuoMatchHistory: Fetching ${
+        matchIds.length
+      } matches for duo with PUUID ${teammatePuuid.substring(0, 8)}...`
+    );
     const fullMatches = await getCachedMatches(summoner.region, matchIds);
+
+    if (!fullMatches || fullMatches.length === 0) {
+      console.warn(
+        `getDuoMatchHistory: No matches fetched from cache/API. Requested ${
+          matchIds.length
+        } matches, got ${fullMatches?.length || 0}`
+      );
+      return { success: true, matches: [] };
+    }
+
+    console.log(
+      `getDuoMatchHistory: Fetched ${fullMatches.length} matches, filtering for duo...`
+    );
 
     // Filter matches where both user and teammate played together
     const duoMatches = fullMatches
       .filter((match) => {
+        if (!match || !match.info || !match.info.participants) {
+          return false;
+        }
+
         const playerParticipant = RiotApi.getPlayerParticipant(
           match,
           summoner.puuid
@@ -577,11 +890,19 @@ export async function getDuoMatchHistory(
         );
 
         // Both must be in the same team
-        return (
+        const isDuo =
           playerParticipant &&
           teammateParticipant &&
-          playerParticipant.teamId === teammateParticipant.teamId
-        );
+          playerParticipant.teamId === teammateParticipant.teamId;
+
+        if (!isDuo && playerParticipant && teammateParticipant) {
+          // Debug: log why match was filtered out
+          console.log(
+            `getDuoMatchHistory: Match ${match.metadata.matchId} filtered - player team: ${playerParticipant.teamId}, teammate team: ${teammateParticipant.teamId}`
+          );
+        }
+
+        return isDuo;
       })
       .map((match) => {
         const playerParticipant = RiotApi.getPlayerParticipant(
@@ -612,6 +933,7 @@ export async function getDuoMatchHistory(
       })
       .sort((a, b) => b.gameCreation - a.gameCreation);
 
+    console.log(`getDuoMatchHistory: Found ${duoMatches.length} duo matches`);
     return { success: true, matches: duoMatches };
   } catch (error) {
     console.error('Error fetching duo match history:', error);

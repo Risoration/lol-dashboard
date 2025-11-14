@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   title: 'LoL Dashboard - Track Your League Performance',
   description:
     'Track your League of Legends stats, match history, and performance',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({

@@ -7,6 +7,8 @@ import {
   CardTitle,
 } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
+import { getChampionImageUrl } from '@/app/lib/utils';
+import Image from 'next/image';
 
 interface ChampionStat {
   championId: number;
@@ -49,6 +51,15 @@ export default function TopChampions({ champions }: TopChampionsProps) {
                     #{index + 1}
                   </div>
 
+                  {/* Champion Icon */}
+                  <Image
+                    src={getChampionImageUrl(champion.championName)}
+                    alt={champion.championName}
+                    className='w-12 h-12 rounded'
+                    width={48}
+                    height={48}
+                  />
+
                   {/* Champion Info */}
                   <div className='flex-1'>
                     <div className='font-semibold'>{champion.championName}</div>
@@ -63,12 +74,16 @@ export default function TopChampions({ champions }: TopChampionsProps) {
                       <div className='text-sm text-muted-foreground'>
                         Win Rate
                       </div>
-                      <Badge
-                        variant={champion.winRate >= 50 ? 'victory' : 'defeat'}
-                        className='mt-1'
-                      >
-                        {champion.winRate}%
-                      </Badge>
+                      <div className='flex items-center gap-2 mt-1'>
+                        <Badge
+                          variant={champion.winRate >= 50 ? 'victory' : 'defeat'}
+                        >
+                          {champion.winRate}%
+                        </Badge>
+                        <span className='text-sm text-muted-foreground'>
+                          {champion.wins}W - {champion.losses}L
+                        </span>
+                      </div>
                     </div>
 
                     <div>

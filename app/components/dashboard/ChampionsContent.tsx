@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useAccount } from '../../lib/context/AccountContext';
-import { filterMatchesByQueueType } from '../../lib/utils';
+import { filterMatchesByQueueType, getChampionImageUrl } from '../../lib/utils';
 import type { Match, Summoner } from '../../lib/database/types';
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
+import Image from 'next/image';
 
 interface ChampionsContentProps {
   allStats: Array<{
@@ -40,14 +41,13 @@ export default function ChampionsContent({
     }
 
     // Filter matches by queue type
-    const filteredMatches = filteredStats
-      .flatMap((s) => {
-        const accountMatches = filterMatchesByQueueType(
-          s.matches,
-          filters.queueType
-        ) as Match[];
-        return accountMatches;
-      });
+    const filteredMatches = filteredStats.flatMap((s) => {
+      const accountMatches = filterMatchesByQueueType(
+        s.matches,
+        filters.queueType
+      ) as Match[];
+      return accountMatches;
+    });
 
     // Aggregate by champion
     const championMap = new Map<
@@ -90,23 +90,22 @@ export default function ChampionsContent({
       }
     });
 
-    const championsArray = Array.from(championMap.values())
-      .map((champ) => ({
-        ...champ,
-        winRate:
-          champ.gamesPlayed > 0
-            ? Number(((champ.wins / champ.gamesPlayed) * 100).toFixed(1))
-            : 0,
-        avgKDA:
-          champ.totalDeaths === 0
-            ? champ.totalKills + champ.totalAssists
-            : Number(
-                (
-                  (champ.totalKills + champ.totalAssists) /
-                  Math.max(1, champ.totalDeaths)
-                ).toFixed(2)
-              ),
-      }));
+    const championsArray = Array.from(championMap.values()).map((champ) => ({
+      ...champ,
+      winRate:
+        champ.gamesPlayed > 0
+          ? Number(((champ.wins / champ.gamesPlayed) * 100).toFixed(1))
+          : 0,
+      avgKDA:
+        champ.totalDeaths === 0
+          ? champ.totalKills + champ.totalAssists
+          : Number(
+              (
+                (champ.totalKills + champ.totalAssists) /
+                Math.max(1, champ.totalDeaths)
+              ).toFixed(2)
+            ),
+    }));
 
     // Sort based on selected criteria
     return championsArray.sort((a, b) => {
@@ -174,7 +173,16 @@ export default function ChampionsContent({
                     >
                       <td className='py-3 pr-4 font-semibold'>{index + 1}</td>
                       <td className='py-3 pr-4 font-medium'>
-                        {champion.championName}
+                        <div className='flex items-center gap-3'>
+                          <Image
+                            src={getChampionImageUrl(champion.championName)}
+                            alt={champion.championName}
+                            className='w-10 h-10 rounded-full'
+                            width={40}
+                            height={40}
+                          />
+                          <span>{champion.championName}</span>
+                        </div>
                       </td>
                       <td className='py-3 pr-4 text-center'>
                         {champion.gamesPlayed}
@@ -215,4 +223,3 @@ export default function ChampionsContent({
     </div>
   );
 }
-

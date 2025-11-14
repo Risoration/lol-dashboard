@@ -37,7 +37,7 @@ export default function DuosSection({
 
   // Sort by games played (most games first), then by winrate
   const filtered = duos
-    .filter((d) => d.games >= 2)
+    .filter((d) => d.games >= 5)
     .sort((a, b) => {
       if (b.games !== a.games) return b.games - a.games;
       return b.winRate - a.winRate;

@@ -280,11 +280,11 @@ export async function refreshSummonerData(
 
     if (matchIds.length > 0) {
       // Fetch match details (with rate limiting)
-      // Use higher concurrency (10) for faster fetching - rate limiter will handle throttling
+      // Use lower concurrency (5) to avoid hitting rate limits
       const matches = await riotApi.getMultipleMatches(
         summoner.region,
         matchIds,
-        10
+        5
       );
 
       const matchRows = matches
