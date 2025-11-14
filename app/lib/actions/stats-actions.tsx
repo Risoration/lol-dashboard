@@ -161,7 +161,10 @@ export async function getChampionStats(summonerId: string, limit: number = 10) {
   return { success: true, stats: championStats };
 }
 
-export async function getMatchHistory(summonerId: string, limit: number = 20) {
+export async function getMatchHistory(
+  summonerId: string,
+  limit?: number | null
+) {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -184,12 +187,17 @@ export async function getMatchHistory(summonerId: string, limit: number = 20) {
   }
 
   // Fetch matches
-  const { data: matches, error: matchesError } = await supabase
+  let query = supabase
     .from('matches')
     .select('*')
     .eq('summoner_id', summonerId)
-    .order('game_creation', { ascending: false })
-    .limit(limit);
+    .order('game_creation', { ascending: false });
+
+  if (typeof limit === 'number') {
+    query = query.limit(limit);
+  }
+
+  const { data: matches, error: matchesError } = await query;
 
   if (matchesError) {
     return { error: 'Failed to fetch matches' };

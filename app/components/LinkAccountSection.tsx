@@ -20,7 +20,6 @@ export default function LinkAccountSection() {
   const router = useRouter();
   const [isLinking, setIsLinking] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-
   async function handleLinkAccount(formData: FormData) {
     setIsLinking(true);
     try {
@@ -58,6 +57,7 @@ export default function LinkAccountSection() {
       parsed.tagLine
     );
     router.push(path);
+    setIsSearching(false);
   }
 
   return (
@@ -80,10 +80,7 @@ export default function LinkAccountSection() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
-              action={handleLinkAccount}
-              className='space-y-4'
-            >
+            <form action={handleLinkAccount} className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='region'>Region</Label>
                 <select
@@ -128,11 +125,7 @@ export default function LinkAccountSection() {
                 />
               </div>
 
-              <Button
-                type='submit'
-                className='w-full'
-                disabled={isLinking}
-              >
+              <Button type='submit' className='w-full' disabled={isLinking}>
                 {isLinking ? 'Linking...' : 'Link Account'}
               </Button>
             </form>
@@ -148,10 +141,7 @@ export default function LinkAccountSection() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
-              onSubmit={handleSearchAccount}
-              className='space-y-4'
-            >
+            <form onSubmit={handleSearchAccount} className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='searchRegion'>Region</Label>
                 <select

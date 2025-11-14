@@ -49,7 +49,13 @@ export type Tier =
 export type Rank = 'I' | 'II' | 'III' | 'IV';
 export type QueueType = 'RANKED_SOLO_5x5' | 'RANKED_FLEX_SR' | 'ARAM';
 export type Role = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY' | 'NONE';
-export type TeamPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY';
+export type TeamPosition =
+  | 'TOP'
+  | 'JUNGLE'
+  | 'MIDDLE'
+  | 'BOTTOM'
+  | 'UTILITY'
+  | 'NONE';
 
 // ============================================================================
 // Account Types (ACCOUNT-V1)

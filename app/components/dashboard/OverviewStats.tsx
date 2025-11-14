@@ -7,7 +7,9 @@ import {
   CardTitle,
 } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
-import type { RankedStats } from '../../lib/database/types';
+import type { RankedStats, Summoner } from '../../lib/database/types';
+import Image from 'next/image';
+import { getProfileIcon, getTierIcon } from '@/app/lib/utils';
 
 interface OverviewStatsProps {
   stats: {
@@ -19,29 +21,18 @@ interface OverviewStatsProps {
     avgKills: number;
     avgDeaths: number;
     avgAssists: number;
+    profile_icon_id: number;
+    summoner_name: string;
   };
   rankedStats: RankedStats[];
+  summonerMap: Record<string, Summoner>;
 }
 
 export default function OverviewStats({
   stats,
   rankedStats,
+  summonerMap,
 }: OverviewStatsProps) {
-  const getTierColor = (tier: string | null) => {
-    if (!tier) return 'victory';
-    const lowerTier = tier.toLowerCase();
-    if (lowerTier.includes('challenger')) return 'default';
-    if (lowerTier.includes('grandmaster')) return 'destructive';
-    if (lowerTier.includes('master')) return 'destructive';
-    if (lowerTier.includes('diamond')) return 'default';
-    if (lowerTier.includes('emerald')) return 'default';
-    if (lowerTier.includes('platinum')) return 'secondary';
-    if (lowerTier.includes('gold')) return 'secondary';
-    if (lowerTier.includes('silver')) return 'outline';
-    if (lowerTier.includes('bronze')) return 'outline';
-    return 'outline';
-  };
-
   return (
     <div className='space-y-6'>
       {/* Ranked Stats */}
@@ -63,21 +54,45 @@ export default function OverviewStats({
                     <div>
                       {ranked.tier ? (
                         <>
-                          <div className='flex items-center gap-2 mb-2'>
-                            <Badge
-                              variant={
-                                ranked.wins > ranked.losses
-                                  ? 'victory'
-                                  : 'defeat'
-                              }
-                            >
-                              {ranked.wins > ranked.losses ? 'Win' : 'Loss'}
-                            </Badge>
+                          <div className='flex items-center justify-between gap-2 mb-2'>
+                            {(() => {
+                              const account =
+                                summonerMap[ranked.summoner_id] ?? null;
+                              const displayName =
+                                account?.summoner_name || stats.summoner_name;
+                              const profileIconId =
+                                account?.profile_icon_id ||
+                                stats.profile_icon_id;
+
+                              return (
+                                <>
+                                  <Image
+                                    src={getProfileIcon(Number(profileIconId))}
+                                    className='w-10 h-10 rounded-4xl'
+                                    alt={displayName}
+                                    height={40}
+                                    width={40}
+                                  />
+                                  <span className='font-medium'>
+                                    {displayName}
+                                  </span>
+                                </>
+                              );
+                            })()}
+                          </div>
+                          <div className='flex items-center justify-between gap-2 mb-2'>
+                            <Image
+                              src={getTierIcon(ranked.tier)}
+                              className='w-10 h-10'
+                              alt={ranked.tier}
+                              height={40}
+                              width={40}
+                            />
                             <span className='text-sm font-medium'>
-                              {ranked.league_points} LP
+                              {ranked.tier} {ranked.rank}
                             </span>
                           </div>
-                          <div className='text-sm text-muted-foreground'>
+                          <div className='flex items-center justify-between text-sm text-muted-foreground'>
                             {ranked.wins}W {ranked.losses}L
                             <span className='ml-2'>
                               (
@@ -105,7 +120,7 @@ export default function OverviewStats({
 
       {/* Overall Stats */}
       <div>
-        <h2 className='text-xl font-semibold mb-4'>Overall Statistics</h2>
+        <h2 className='text-xl font-semibold mb-4'>Recent Match Statistics</h2>
         <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
           <Card>
             <CardHeader className='pb-3'>
@@ -129,13 +144,6 @@ export default function OverviewStats({
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>{stats.winRate}%</div>
-              <div
-                className={`text-xs mt-1 ${
-                  stats.winRate >= 50 ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {stats.winRate >= 50 ? 'Above Average' : 'Below Average'}
-              </div>
             </CardContent>
           </Card>
 
@@ -161,7 +169,7 @@ export default function OverviewStats({
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {stats.avgKDA >= 3 ? 'S' : stats.avgKDA >= 2 ? 'A' : 'B'}
+                {stats.avgKDA >= 5 ? 'S' : stats.avgKDA >= 3 ? 'A' : 'B'}
               </div>
               <div className='text-xs text-muted-foreground mt-1'>Grade</div>
             </CardContent>

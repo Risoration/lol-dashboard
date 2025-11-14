@@ -4,6 +4,7 @@ import { getUser, getUserSummoners } from '../lib/actions';
 import { AccountProvider } from '../lib/context/AccountContext';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import AccountManager from '../components/AccountManager';
+import RefreshButton from '../components/dashboard/RefreshButton';
 
 export default async function DashboardLayout({
   children,
@@ -30,15 +31,26 @@ export default async function DashboardLayout({
           <div className='container mx-auto px-4 py-4'>
             <div className='flex items-center justify-between'>
               <div>
-                <Link
-                  href='/dashboard'
-                  className='text-2xl font-bold'
-                >
+                <Link href='/dashboard' className='text-2xl font-bold'>
                   LoL Dashboard
                 </Link>
               </div>
 
-              <AccountManager initialSummoners={result.summoners} />
+              <div className='flex items-center gap-4'>
+                {result.summoners && result.summoners.length > 0 && (
+                  <RefreshButton
+                    summonerId={
+                      result.summoners.find((s) => s.is_main)?.id ||
+                      result.summoners[0].id
+                    }
+                    lastSyncedAt={
+                      result.summoners.find((s) => s.is_main)?.last_synced_at ||
+                      result.summoners[0].last_synced_at
+                    }
+                  />
+                )}
+                <AccountManager initialSummoners={result.summoners} />
+              </div>
             </div>
           </div>
         </header>
@@ -46,41 +58,26 @@ export default async function DashboardLayout({
         {/* Navigation Tabs */}
         <nav className='border-b bg-white/30 dark:bg-slate-900/30 backdrop-blur-sm'>
           <div className='container mx-auto px-4'>
-            <Tabs
-              defaultValue='dashboard'
-              className='w-full'
-            >
+            <Tabs defaultValue='dashboard' className='w-full'>
               <TabsList className='h-12 bg-transparent border-none'>
                 <Link href='/dashboard'>
-                  <TabsTrigger
-                    value='dashboard'
-                    className='text-base'
-                  >
+                  <TabsTrigger value='dashboard' className='text-base'>
                     Dashboard
                   </TabsTrigger>
                 </Link>
-                <Link href='/dashboard/champions'>
-                  <TabsTrigger
-                    value='champions'
-                    className='text-base'
-                  >
+                <Link href='/champions'>
+                  <TabsTrigger value='champions' className='text-base'>
                     Champions
                   </TabsTrigger>
                 </Link>
-                <Link href='/dashboard/matches'>
-                  <TabsTrigger
-                    value='matches'
-                    className='text-base'
-                  >
+                <Link href='/matches'>
+                  <TabsTrigger value='matches' className='text-base'>
                     Matches
                   </TabsTrigger>
                 </Link>
-                <Link href='/dashboard/matchups'>
-                  <TabsTrigger
-                    value='matchups'
-                    className='text-base'
-                  >
-                    Matchups
+                <Link href='/matchups'>
+                  <TabsTrigger value='matchups' className='text-base'>
+                    Synergies & Matchups
                   </TabsTrigger>
                 </Link>
               </TabsList>

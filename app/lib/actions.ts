@@ -11,6 +11,7 @@ export {
   refreshSummonerData,
   getSummonerById,
   getUserSummoners,
+  setMainAccount,
 } from './actions/summoner-actions';
 
 // Stats actions
@@ -32,3 +33,11 @@ export {
 
 // Public actions
 export { searchPlayer } from './actions/public-actions';
+
+// Matchup actions
+export {
+  getMatchupStats,
+  getSynergyStats,
+  getDuoStats,
+  getDuoMatchHistory,
+} from './actions/matchup-actions';

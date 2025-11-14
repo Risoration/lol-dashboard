@@ -92,6 +92,7 @@ export async function searchPlayer(
     let matches: MatchDto[] = [];
     if (matchIds && matchIds.length > 0) {
       try {
+        // Use higher concurrency (10) for faster fetching - rate limiter will handle throttling
         matches = await riotApi.getMultipleMatches(
           validated.region as any,
           matchIds,

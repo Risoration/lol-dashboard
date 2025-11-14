@@ -6,10 +6,9 @@ import {
   CardHeader,
   CardTitle,
 } from '../../../../../components/ui/card';
-import { Button } from '../../../../../components/ui/button';
-import Link from 'next/link';
 import Image from 'next/image';
 import MatchList from '../../../../components/dashboard/MatchList';
+import PlayerRefreshButton from '../../../../components/player/PlayerRefreshButton';
 
 interface PageProps {
   params: {
@@ -55,7 +54,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         {/* Player Header */}
         <Card className='m-lg'>
           <CardHeader>
-            <div className='flex items-center gap-4'>
+            <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='flex items-center gap-4'>
               <div className='w-16 h-16 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center text-2xl font-bold'>
                 <Image
                   src={player.profileIcon}
@@ -74,6 +74,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                   Level {player.summonerLevel} • {region.toUpperCase()}
                 </CardDescription>
               </div>
+            </div>
+              <PlayerRefreshButton />
             </div>
           </CardHeader>
         </Card>

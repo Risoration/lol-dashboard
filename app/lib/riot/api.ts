@@ -178,6 +178,27 @@ export class RiotApi {
   }
 
   /**
+   * Get account by PUUID
+   * @param region - Regional routing value (e.g., 'americas', 'europe', 'asia')
+   * @param puuid - Player UUID
+   * @returns Account data with Riot ID (gameName#tagLine)
+   */
+  async getAccountByPuuid(region: Region, puuid: string): Promise<AccountDto> {
+    if (!puuid || puuid.trim().length === 0) {
+      throw new Error('PUUID cannot be empty');
+    }
+    if (!region) {
+      throw new Error('Region is required');
+    }
+
+    const regionalEndpoint = getRegionalEndpoint(region);
+    const url = `https://${regionalEndpoint}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(
+      puuid
+    )}`;
+    return this.makeRequest<AccountDto>(url);
+  }
+
+  /**
    * Get summoner by PUUID
    * @param region - Platform region (e.g., 'NA1', 'EUW1')
    * @param puuid - Player UUID
@@ -254,7 +275,7 @@ export class RiotApi {
   async getMatchIds(
     region: Region,
     puuid: string,
-    count: number = 20,
+    count: number,
     start: number = 0
   ): Promise<string[]> {
     //validate count
@@ -289,7 +310,7 @@ export class RiotApi {
   async getMultipleMatches(
     region: Region,
     matchIds: string[],
-    concurrency: number = 5
+    concurrency: number = 10
   ): Promise<MatchDto[]> {
     //validate concurrency
     if (concurrency < 1 || concurrency > 10) {
@@ -314,9 +335,10 @@ export class RiotApi {
       //add batch results to results array
       results.push(...batchResults);
 
-      //wait for next batch
+      // Small delay only if we have more batches to process
+      // The rate limiter will handle most rate limiting, so we can reduce this delay
       if (i + concurrency < matchIds.length) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
 

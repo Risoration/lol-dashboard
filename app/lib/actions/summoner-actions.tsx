@@ -5,6 +5,8 @@ import { RiotApi } from '../riot/api';
 import { z } from 'zod';
 import type { SummonerInsert } from '../database/types';
 
+const MAX_MATCH_COUNT = 20;
+
 const linkSummonerSchema = z.object({
   region: z.enum([
     'NA1',
@@ -43,6 +45,28 @@ export async function linkSummoner(formData: FormData) {
   }
 
   try {
+    // Ensure profile exists before linking summoner
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (!existingProfile) {
+      // Create profile if it doesn't exist
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: user.id,
+        email: user.email || null,
+      });
+
+      if (profileError) {
+        console.error('Failed to create profile:', profileError);
+        return {
+          error: 'Failed to create user profile. Please try again.',
+        };
+      }
+    }
+
     const riotApi = new RiotApi();
 
     // Get account and summoner data using region, gameName and tagLine
@@ -78,6 +102,14 @@ export async function linkSummoner(formData: FormData) {
 
     console.log('🏆 Ranked stats:', rankedStats);
 
+    // Check if this is the user's first account (should be set as main)
+    const { data: existingSummoners } = await supabase
+      .from('summoners')
+      .select('id')
+      .eq('user_id', user.id);
+
+    const isFirstAccount = !existingSummoners || existingSummoners.length === 0;
+
     // Store summoner data in database (upsert to handle re-linking)
     const summonerInsert: SummonerInsert = {
       user_id: user.id,
@@ -88,6 +120,7 @@ export async function linkSummoner(formData: FormData) {
       profile_icon_id: summonerData.profileIconId,
       summoner_level: summonerData.summonerLevel,
       last_synced_at: new Date().toISOString(),
+      is_main: isFirstAccount, // Set as main if it's the first account
     };
 
     console.log(
@@ -150,14 +183,33 @@ export async function linkSummoner(formData: FormData) {
   }
 }
 
-export async function refreshSummonerData(summonerId: string) {
+type RefreshSummonerSuccess = {
+  success: true;
+  matchCount: number;
+  lastSyncedAt: string;
+  cooldownSeconds: number;
+};
+
+type RefreshSummonerError = {
+  success: false;
+  error: string;
+  cooldownRemaining?: number;
+};
+
+export type RefreshSummonerResult =
+  | RefreshSummonerSuccess
+  | RefreshSummonerError;
+
+export async function refreshSummonerData(
+  summonerId: string
+): Promise<RefreshSummonerResult> {
   const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: 'Unauthorised' };
+    return { success: false, error: 'Unauthorised' };
   }
 
   // Get summoner data and verify ownership
@@ -169,7 +221,7 @@ export async function refreshSummonerData(summonerId: string) {
     .single();
 
   if (summonerError || !summoner) {
-    return { error: 'Summoner not found' };
+    return { success: false, error: 'Summoner not found' };
   }
 
   // Check cooldown (2 minutes)
@@ -184,7 +236,9 @@ export async function refreshSummonerData(summonerId: string) {
       (cooldownMs - (Date.now() - lastSync.getTime())) / 1000
     );
     return {
+      success: false,
       error: `Please wait ${remainingSeconds} seconds before refreshing again`,
+      cooldownRemaining: remainingSeconds,
     };
   }
 
@@ -195,63 +249,135 @@ export async function refreshSummonerData(summonerId: string) {
     const matchIds = await riotApi.getMatchIds(
       summoner.region,
       summoner.puuid,
-      20,
+      MAX_MATCH_COUNT,
       0
     );
 
-    if (matchIds.length === 0) {
-      return { success: true, matchCount: 0 };
+    const syncedAt = new Date().toISOString();
+
+    const { error: deleteMatchesError } = await supabase
+      .from('matches')
+      .delete()
+      .eq('summoner_id', summoner.id);
+
+    if (deleteMatchesError) {
+      console.error('Failed to clear previous matches:', deleteMatchesError);
     }
 
-    // Fetch match details (with rate limiting)
-    const matches = await riotApi.getMultipleMatches(
+    const { error: deleteRankedError } = await supabase
+      .from('ranked_stats')
+      .delete()
+      .eq('summoner_id', summoner.id);
+
+    if (deleteRankedError) {
+      console.error(
+        'Failed to clear previous ranked stats:',
+        deleteRankedError
+      );
+    }
+
+    let storedCount = 0;
+
+    if (matchIds.length > 0) {
+      // Fetch match details (with rate limiting)
+      // Use higher concurrency (10) for faster fetching - rate limiter will handle throttling
+      const matches = await riotApi.getMultipleMatches(
+        summoner.region,
+        matchIds,
+        10
+      );
+
+      const matchRows = matches
+        .map((match) => {
+          const participant = RiotApi.getPlayerParticipant(
+            match,
+            summoner.puuid
+          );
+          if (!participant) return null;
+
+          return {
+            summoner_id: summoner.id,
+            match_id: match.metadata.matchId,
+            game_creation: match.info.gameCreation,
+            game_duration: match.info.gameDuration,
+            queue_id: match.info.queueId,
+            champion_id: participant.championId,
+            champion_name: participant.championName,
+            role: participant.role,
+            team_position: participant.teamPosition,
+            win: participant.win,
+            kills: participant.kills,
+            deaths: participant.deaths,
+            assists: participant.assists,
+            cs:
+              participant.totalMinionsKilled + participant.neutralMinionsKilled,
+            gold_earned: participant.goldEarned,
+            damage_dealt: participant.totalDamageDealtToChampions,
+            vision_score: participant.visionScore,
+            synced_at: syncedAt,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null);
+
+      if (matchRows.length > 0) {
+        const { error: insertMatchesError } = await supabase
+          .from('matches')
+          .insert(matchRows);
+
+        if (insertMatchesError) {
+          console.error('Failed to store match data:', insertMatchesError);
+        } else {
+          storedCount = matchRows.length;
+        }
+      }
+    }
+
+    // Fetch ranked stats using PUUID
+    const rankedStats = await riotApi.getRankedInfoByPuuid(
       summoner.region,
-      matchIds,
-      5
+      summoner.puuid
     );
 
-    // Process and store matches
-    let storedCount = 0;
-    for (const match of matches) {
-      // Find player's participant data
-      const participant = RiotApi.getPlayerParticipant(match, summoner.puuid);
-      if (!participant) continue;
-
-      // Insert match
-      await supabase.from('matches').insert({
+    if (rankedStats && rankedStats.length > 0) {
+      const rankedRows = rankedStats.map((entry) => ({
         summoner_id: summoner.id,
-        match_id: match.metadata.matchId,
-        game_creation: match.info.gameCreation,
-        game_duration: match.info.gameDuration,
-        queue_id: match.info.queueId,
-        champion_id: participant.championId,
-        champion_name: participant.championName,
-        role: participant.role,
-        team_position: participant.teamPosition,
-        win: participant.win,
-        kills: participant.kills,
-        deaths: participant.deaths,
-        assists: participant.assists,
-        cs: participant.totalMinionsKilled + participant.neutralMinionsKilled,
-        gold_earned: participant.goldEarned,
-        damage_dealt: participant.totalDamageDealtToChampions,
-        vision_score: participant.visionScore,
-        synced_at: new Date().toISOString(),
-      });
+        queue_type: entry.queueType,
+        tier: entry.tier,
+        rank: entry.rank,
+        league_points: entry.leaguePoints,
+        wins: entry.wins,
+        losses: entry.losses,
+        synced_at: syncedAt,
+      }));
 
-      storedCount++;
+      // Use upsert with unique constraint on (summoner_id, queue_type)
+      const { error: insertRankedError } = await supabase
+        .from('ranked_stats')
+        .upsert(rankedRows, {
+          onConflict: 'summoner_id,queue_type',
+        });
+
+      if (insertRankedError) {
+        console.error('Failed to store ranked stats:', insertRankedError);
+      }
     }
 
-    // Update last_synced_at
+    // Update last_synced_at (even if no matches were stored)
     await supabase
       .from('summoners')
-      .update({ last_synced_at: new Date().toISOString() })
+      .update({ last_synced_at: syncedAt })
       .eq('id', summoner.id);
 
-    return { success: true, matchCount: storedCount };
+    return {
+      success: true,
+      matchCount: storedCount,
+      lastSyncedAt: syncedAt,
+      cooldownSeconds: cooldownMinutes * 60,
+    };
   } catch (error) {
     console.error('Refresh summoner data error:', error);
     return {
+      success: false,
       error: error instanceof Error ? error.message : 'Failed to refresh data',
     };
   }
@@ -302,4 +428,56 @@ export async function getUserSummoners() {
   }
 
   return { success: true, summoners: summoners || [] };
+}
+
+/**
+ * Set a summoner as the main account
+ * This will unset any other main account for the user
+ */
+export async function setMainAccount(summonerId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorised' };
+  }
+
+  // Verify the summoner belongs to the user
+  const { data: summoner, error: summonerError } = await supabase
+    .from('summoners')
+    .select('*')
+    .eq('id', summonerId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (summonerError || !summoner) {
+    return { error: 'Summoner not found' };
+  }
+
+  // Unset all other main accounts for this user
+  const { error: unsetError } = await supabase
+    .from('summoners')
+    .update({ is_main: false })
+    .eq('user_id', user.id)
+    .neq('id', summonerId);
+
+  if (unsetError) {
+    console.error('Failed to unset other main accounts:', unsetError);
+    return { error: 'Failed to update main account' };
+  }
+
+  // Set this summoner as main
+  const { error: setError } = await supabase
+    .from('summoners')
+    .update({ is_main: true })
+    .eq('id', summonerId);
+
+  if (setError) {
+    console.error('Failed to set main account:', setError);
+    return { error: 'Failed to set main account' };
+  }
+
+  return { success: true };
 }

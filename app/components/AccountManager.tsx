@@ -3,13 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount } from '../lib/context/AccountContext';
-import { refreshSummonerData, signOut } from '../lib/actions';
+import { refreshSummonerData, signOut, setMainAccount } from '../lib/actions';
 import type { Summoner } from '../lib/database/types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Avatar, AvatarFallback } from '../../components/ui/avatar';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '../../components/ui/avatar';
 import { toast } from 'sonner';
-import { RefreshCw, LogOut, User } from 'lucide-react';
+import { RefreshCw, LogOut, User, Star } from 'lucide-react';
+import LinkAccountDialog from './LinkAccountDialog';
+import { getProfileIcon } from '../lib/utils';
 
 interface AccountManagerProps {
   initialSummoners: Summoner[];
@@ -23,6 +29,7 @@ export default function AccountManager({
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
 
   useEffect(() => {
     setSummoners(initialSummoners);
@@ -33,12 +40,17 @@ export default function AccountManager({
     try {
       const result = await refreshSummonerData(summonerId);
 
-      if (result.error) {
+      if (!result.success) {
         toast.error(result.error);
-      } else {
-        toast.success(`Refreshed! Added ${result.matchCount} new matches`);
-        router.refresh();
+        return;
       }
+
+      toast.success(
+        result.matchCount > 0
+          ? `Refreshed! Added ${result.matchCount} new matches`
+          : 'No new matches found'
+      );
+      router.refresh();
     } catch (error) {
       toast.error('Failed to refresh data');
     } finally {
@@ -49,6 +61,22 @@ export default function AccountManager({
   const handleSignOut = async () => {
     await signOut();
   };
+
+  const handleSetMainAccount = async (summonerId: string) => {
+    try {
+      const result = await setMainAccount(summonerId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Main account updated');
+        router.refresh();
+      }
+    } catch (error) {
+      toast.error('Failed to set main account');
+    }
+  };
+
+  const mainAccount = summoners.find((s) => s.is_main) || summoners[0];
 
   const handleRegionFilter = (region: 'ALL' | 'NA1' | 'EUW1') => {
     setRegion(region);
@@ -92,6 +120,12 @@ export default function AccountManager({
           className='flex items-center gap-2'
         >
           <Avatar className='h-6 w-6'>
+            {mainAccount ? (
+              <AvatarImage
+                src={getProfileIcon(mainAccount.profile_icon_id)}
+                alt={mainAccount.summoner_name}
+              />
+            ) : null}
             <AvatarFallback>
               <User className='h-4 w-4' />
             </AvatarFallback>
@@ -112,42 +146,76 @@ export default function AccountManager({
                   {summoners.map((summoner) => (
                     <div
                       key={summoner.id}
-                      className='flex items-center justify-between p-2 rounded border'
+                      className={`flex items-center justify-between p-2 rounded border ${
+                        summoner.is_main ? 'border-primary bg-primary/5' : ''
+                      }`}
                     >
-                      <div className='flex-1'>
-                        <div className='font-medium text-sm'>
-                          {summoner.summoner_name}
-                        </div>
-                        <div className='text-xs text-muted-foreground'>
-                          Level {summoner.summoner_level} • {summoner.region}
+                      <div className='flex items-center gap-2 flex-1'>
+                        <Avatar className='h-8 w-8'>
+                          <AvatarImage
+                            src={getProfileIcon(summoner.profile_icon_id)}
+                            alt={summoner.summoner_name}
+                          />
+                          <AvatarFallback>
+                            <User className='h-4 w-4' />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className='flex-1'>
+                          <div className='flex items-center gap-1'>
+                            <span className='font-medium text-sm'>
+                              {summoner.summoner_name}
+                            </span>
+                            {summoner.is_main && (
+                              <Star className='h-3 w-3 fill-yellow-500 text-yellow-500' />
+                            )}
+                          </div>
+                          <div className='text-xs text-muted-foreground'>
+                            Level {summoner.summoner_level} • {summoner.region}
+                            {summoner.is_main && (
+                              <span className='ml-1 text-primary'>• Main</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <Button
-                        size='sm'
-                        variant='ghost'
-                        onClick={() => handleRefresh(summoner.id)}
-                        disabled={refreshing === summoner.id}
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${
-                            refreshing === summoner.id ? 'animate-spin' : ''
-                          }`}
-                        />
-                      </Button>
+                      <div className='flex items-center gap-1'>
+                        {!summoner.is_main && (
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            onClick={() => handleSetMainAccount(summoner.id)}
+                            title='Set as main account'
+                          >
+                            <Star className='h-4 w-4' />
+                          </Button>
+                        )}
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          onClick={() => handleRefresh(summoner.id)}
+                          disabled={refreshing === summoner.id}
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${
+                              refreshing === summoner.id ? 'animate-spin' : ''
+                            }`}
+                          />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {summoners.length < 2 && (
-                <Button
-                  variant='outline'
-                  className='w-full'
-                  onClick={() => router.push('/')}
-                >
-                  Link Another Account
-                </Button>
-              )}
+              <Button
+                variant='outline'
+                className='w-full'
+                onClick={() => {
+                  setIsLinkDialogOpen(true);
+                  setIsOpen(false);
+                }}
+              >
+                Link Another Account
+              </Button>
 
               <Button
                 variant='ghost'
@@ -161,6 +229,11 @@ export default function AccountManager({
           </div>
         )}
       </div>
+
+      <LinkAccountDialog
+        open={isLinkDialogOpen}
+        onOpenChange={setIsLinkDialogOpen}
+      />
     </div>
   );
 }

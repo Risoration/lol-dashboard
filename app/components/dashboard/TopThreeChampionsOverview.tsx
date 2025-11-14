@@ -6,6 +6,7 @@ import {
   AvatarImage,
 } from '../../../components/ui/avatar';
 import clsx from 'clsx';
+import { getChampionImageUrl } from '../../lib/utils';
 
 interface TopThreeChampionsOverviewProps {
   matches: any[];
@@ -97,9 +98,7 @@ export default function TopThreeChampionsOverview({
             >
               <div className='flex items-center gap-3 min-w-0'>
                 <Avatar className='size-8 shrink-0'>
-                  <AvatarImage
-                    src={`https://ddragon.leagueoflegends.com/cdn/15.1.1/img/champion/${champ.name}.png`}
-                  />
+                  <AvatarImage src={getChampionImageUrl(champ.name)} />
                   <AvatarFallback>{champ.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className='leading-tight'>

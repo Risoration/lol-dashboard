@@ -89,6 +89,7 @@ export interface Summoner {
   profile_icon_id: number;
   summoner_level: number;
   last_synced_at: string | null;
+  is_main: boolean;
   created_at: string;
 }
 
@@ -113,6 +114,7 @@ export interface SummonerInsert {
   profile_icon_id: number;
   summoner_level: number;
   last_synced_at?: string | null;
+  is_main?: boolean;
   created_at?: string;
 }
 
@@ -122,6 +124,7 @@ export interface SummonerUpdate {
   profile_icon_id?: number;
   summoner_level?: number;
   last_synced_at?: string | null;
+  is_main?: boolean;
 }
 
 // ============================================================================

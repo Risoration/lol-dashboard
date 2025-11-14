@@ -2,41 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from '../lib/actions/auth-actions';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import DarkModeToggle from '@/components/ui/darkmodetoggle';
+import UserMenu from './UserMenu';
 import { buildPlayerProfilePath, parseSearchInputs } from '../lib/utils';
 
 export default function Navigation() {
   const router = useRouter();
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('EUW1');
   const [isSearching, setIsSearching] = useState(false);
-
-  async function handleSignOut() {
-    setIsSigningOut(true);
-    try {
-      const result = await signOut();
-
-      if (result?.error) {
-        toast.error(result.error);
-        setIsSigningOut(false);
-      } else {
-        toast.success('Signed out successfully');
-        router.push('/login');
-        router.refresh();
-      }
-    } catch (error) {
-      console.error('Sign out error:', error);
-      toast.error('Failed to sign out');
-      setIsSigningOut(false);
-    }
-  }
 
   async function handleSearchAccount(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,13 +34,15 @@ export default function Navigation() {
       parsed.tagLine
     );
     router.push(path);
+    setIsSearching(false);
+    setQuery('');
   }
 
   return (
     <nav className='fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-sm border-b border-slate-200 dark:bg-slate-950/80 dark:border-slate-800'>
       <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
         <div className='flex justify-between items-center h-16'>
-          <Link href='/'>
+          <Link href='/dashboard'>
             <Button className='w-full'>LoL Dashboard</Button>
           </Link>
 
@@ -77,70 +57,37 @@ export default function Navigation() {
               name='searchRegion'
               className='h-9 rounded-md border border-slate-300 bg-transparent px-2 text-sm dark:border-slate-700'
             >
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='NA1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='NA1'>
                 North America
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='EUW1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='EUW1'>
                 Europe West
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='EUN1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='EUN1'>
                 Europe Nordic & East
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='KR'
-              >
+              <option className='bg-white dark:bg-slate-900' value='KR'>
                 Korea
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='BR1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='BR1'>
                 Brazil
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='LAN1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='LAN1'>
                 Latin America North
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='LAS1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='LAS1'>
                 Latin America South
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='TR1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='TR1'>
                 Turkey
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='RU'
-              >
+              <option className='bg-white dark:bg-slate-900' value='RU'>
                 Russia
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='JP1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='JP1'>
                 Japan
               </option>
-              <option
-                className='bg-white dark:bg-slate-900'
-                value='OC1'
-              >
+              <option className='bg-white dark:bg-slate-900' value='OC1'>
                 Oceania
               </option>
             </select>
@@ -150,27 +97,14 @@ export default function Navigation() {
               onChange={(e) => setQuery(e.target.value)}
               name='searchQuery'
             />
-            <Button
-              type='submit'
-              size='sm'
-              disabled={isSearching}
-            >
+            <Button type='submit' size='sm' disabled={isSearching}>
               {isSearching ? 'Searching...' : 'Search'}
             </Button>
           </form>
 
           <div className='flex items-center gap-4'>
             <DarkModeToggle />
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className='gap-2'
-            >
-              <LogOut className='h-4 w-4' />
-              {isSigningOut ? 'Signing out...' : 'Sign Out'}
-            </Button>
+            <UserMenu />
           </div>
         </div>
       </div>

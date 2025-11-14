@@ -2,7 +2,7 @@
 
 import { Badge } from '../../../components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
-import { getQueueName } from '../../lib/utils';
+import { getQueueName, getChampionImageUrl } from '../../lib/utils';
 import {
   Avatar,
   AvatarImage,
@@ -203,7 +203,7 @@ export default function MatchList({ matches, playerPuuid }: MatchListProps) {
                   <div className='grid grid-cols-[1fr_1fr_2fr] grid-rows-2 items-center gap-2'>
                     <Avatar className='justify-self-center row-span-1'>
                       <AvatarImage
-                        src={`https://ddragon.leagueoflegends.com/cdn/15.1.1/img/champion/${participant.championName}.png`}
+                        src={getChampionImageUrl(participant.championName)}
                       />
                       <AvatarFallback>
                         {participant.championName.charAt(0)}
