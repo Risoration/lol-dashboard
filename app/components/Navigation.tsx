@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -9,12 +9,28 @@ import { toast } from 'sonner';
 import DarkModeToggle from '@/components/ui/darkmodetoggle';
 import UserMenu from './UserMenu';
 import { buildPlayerProfilePath, parseSearchInputs } from '../lib/utils';
+import { getSession } from '../lib/actions';
+import { LogIn } from 'lucide-react';
 
 export default function Navigation() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('EUW1');
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const session = await getSession();
+        setIsLoggedIn(!!session);
+      } catch (error) {
+        console.error('Failed to check auth status:', error);
+        setIsLoggedIn(false);
+      }
+    }
+    checkAuth();
+  }, []);
 
   async function handleSearchAccount(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -104,7 +120,19 @@ export default function Navigation() {
 
           <div className='flex items-center gap-4'>
             <DarkModeToggle />
-            <UserMenu />
+            {isLoggedIn === null ? (
+              // Loading state - show nothing or a placeholder
+              <div className='w-20 h-9' />
+            ) : isLoggedIn ? (
+              <UserMenu />
+            ) : (
+              <Button asChild variant='default' size='sm'>
+                <Link href='/login' className='flex items-center gap-2'>
+                  <LogIn className='h-4 w-4' />
+                  <span className='hidden sm:inline'>Login</span>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>

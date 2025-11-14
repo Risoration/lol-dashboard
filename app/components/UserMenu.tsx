@@ -34,9 +34,13 @@ export default function UserMenu() {
         const result = await getUserSummoners();
         if (result.success && result.summoners) {
           setSummoners(result.summoners);
+        } else {
+          // User might not be logged in or have no summoners
+          setSummoners([]);
         }
       } catch (error) {
         console.error('Failed to fetch summoners:', error);
+        setSummoners([]);
       }
     }
 
