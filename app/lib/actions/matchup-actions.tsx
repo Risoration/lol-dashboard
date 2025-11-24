@@ -43,7 +43,7 @@ interface DuoStat {
   winRate: number;
 }
 
-export interface MatchFetchProgress {
+export interface MatchFetchProgressType {
   total: number;
   cached: number;
   fetched: number;

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getMatchFetchProgress, type MatchFetchProgress } from '../../lib/actions';
+import {
+  getMatchFetchProgress,
+  type MatchFetchProgressType,
+} from '../../lib/actions/matchup-actions';
 
 interface MatchFetchProgressProps {
   progressKeys: string[];
@@ -12,7 +15,7 @@ export default function MatchFetchProgress({
   progressKeys,
   onComplete,
 }: MatchFetchProgressProps) {
-  const [progress, setProgress] = useState<MatchFetchProgress | null>(null);
+  const [progress, setProgress] = useState<MatchFetchProgressType | null>(null);
   const [isPolling, setIsPolling] = useState(true);
 
   useEffect(() => {
@@ -67,9 +70,10 @@ export default function MatchFetchProgress({
     );
   }
 
-  const percentage = progress.total > 0 
-    ? Math.round((progress.current / progress.total) * 100) 
-    : 0;
+  const percentage =
+    progress.total > 0
+      ? Math.round((progress.current / progress.total) * 100)
+      : 0;
 
   return (
     <div className='text-center py-8 space-y-4'>
@@ -97,4 +101,3 @@ export default function MatchFetchProgress({
     </div>
   );
 }
-

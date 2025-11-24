@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerClient } from '../supabase/server';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
