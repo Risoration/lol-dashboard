@@ -5,7 +5,7 @@
  * import { linkSummoner, getStatsOverview } from '@/lib/actions';
  */
 
-import { MatchFetchProgress } from './actions/matchup-actions';
+import { getMatchFetchProgress } from './actions/matchup-actions';
 
 // Summoner actions
 export {
