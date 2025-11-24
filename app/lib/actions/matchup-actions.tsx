@@ -56,8 +56,8 @@ export interface MatchFetchProgressType {
  */
 export async function getMatchFetchProgress(
   progressKey: string
-): Promise<MatchFetchProgress | null> {
-  return cache.get<MatchFetchProgress>(`progress:${progressKey}`);
+): Promise<MatchFetchProgressType | null> {
+  return cache.get<MatchFetchProgressType>(`progress:${progressKey}`);
 }
 
 /**
@@ -65,7 +65,7 @@ export async function getMatchFetchProgress(
  * Each match is cached individually to maximize cache hits
  * TTL: 24 hours (match data never changes once complete)
  */
-async function getCachedMatches(
+export async function getCachedMatches(
   region: Region,
   matchIds: string[],
   progressKey?: string
@@ -97,7 +97,7 @@ async function getCachedMatches(
 
   // Update progress: all cached
   if (progressKey) {
-    const progress: MatchFetchProgress = {
+    const progress: MatchFetchProgressType = {
       total: matchIds.length,
       cached: cachedCount,
       fetched: 0,
@@ -125,7 +125,7 @@ async function getCachedMatches(
       3,
       progressKey
         ? (current: number, total: number) => {
-            const progress: MatchFetchProgress = {
+            const progress: MatchFetchProgressType = {
               total: matchIds.length,
               cached: cachedCount,
               fetched: current,
@@ -149,7 +149,7 @@ async function getCachedMatches(
 
     // Update progress: complete
     if (progressKey) {
-      const progress: MatchFetchProgress = {
+      const progress: MatchFetchProgressType = {
         total: matchIds.length,
         cached: cachedCount,
         fetched: fetchedMatches.length,
