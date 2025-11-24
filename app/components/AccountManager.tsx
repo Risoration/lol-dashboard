@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount } from '../lib/context/AccountContext';
-import { refreshSummonerData, signOut, setMainAccount } from '../lib/actions';
+import {
+  refreshSummonerData,
+  signOut,
+  setMainAccount,
+  unlinkSummoner,
+} from '../lib/actions';
 import type { Summoner } from '../lib/database/types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -12,8 +17,16 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '../../components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 import { toast } from 'sonner';
-import { RefreshCw, LogOut, User, Star } from 'lucide-react';
+import { RefreshCw, LogOut, User, Star, Trash2 } from 'lucide-react';
 import LinkAccountDialog from './LinkAccountDialog';
 import { getProfileIcon } from '../lib/utils';
 
@@ -30,6 +43,8 @@ export default function AccountManager({
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<Summoner | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
 
   useEffect(() => {
     setSummoners(initialSummoners);
@@ -73,6 +88,27 @@ export default function AccountManager({
       }
     } catch (error) {
       toast.error('Failed to set main account');
+    }
+  };
+
+  const handleUnlinkAccount = async () => {
+    if (!unlinkTarget) return;
+
+    setIsUnlinking(true);
+    try {
+      const result = await unlinkSummoner(unlinkTarget.id);
+      if ('error' in result) {
+        toast.error(result.error);
+      } else {
+        toast.success('Account unlinked successfully');
+        setUnlinkTarget(null);
+        setIsOpen(false);
+        router.refresh();
+      }
+    } catch (error) {
+      toast.error('Failed to unlink account');
+    } finally {
+      setIsUnlinking(false);
     }
   };
 
@@ -193,6 +229,7 @@ export default function AccountManager({
                           variant='ghost'
                           onClick={() => handleRefresh(summoner.id)}
                           disabled={refreshing === summoner.id}
+                          title='Refresh data'
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${
@@ -200,6 +237,17 @@ export default function AccountManager({
                             }`}
                           />
                         </Button>
+                        {summoners.length > 1 && (
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            onClick={() => setUnlinkTarget(summoner)}
+                            title='Unlink account'
+                            className='text-destructive hover:text-destructive'
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -234,6 +282,56 @@ export default function AccountManager({
         open={isLinkDialogOpen}
         onOpenChange={setIsLinkDialogOpen}
       />
+
+      {/* Unlink Confirmation Dialog */}
+      <Dialog
+        open={!!unlinkTarget}
+        onOpenChange={(open) => !open && setUnlinkTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unlink Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to unlink{' '}
+              <span className='font-semibold'>
+                {unlinkTarget?.summoner_name}
+              </span>
+              ?
+              <br />
+              <br />
+              This will permanently delete all match data, ranked stats, and
+              other information associated with this account. This action cannot
+              be undone.
+              {unlinkTarget?.is_main && (
+                <>
+                  <br />
+                  <br />
+                  <span className='text-amber-600 dark:text-amber-400 font-semibold'>
+                    This is your main account. Another account will be set as
+                    main automatically.
+                  </span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setUnlinkTarget(null)}
+              disabled={isUnlinking}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleUnlinkAccount}
+              disabled={isUnlinking}
+            >
+              {isUnlinking ? 'Unlinking...' : 'Unlink Account'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

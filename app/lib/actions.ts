@@ -5,6 +5,8 @@
  * import { linkSummoner, getStatsOverview } from '@/lib/actions';
  */
 
+import { MatchFetchProgress } from './actions/matchup-actions';
+
 // Summoner actions
 export {
   linkSummoner,
@@ -12,6 +14,7 @@ export {
   getSummonerById,
   getUserSummoners,
   setMainAccount,
+  unlinkSummoner,
 } from './actions/summoner-actions';
 
 // Stats actions
@@ -19,6 +22,7 @@ export {
   getStatsOverview,
   getChampionStats,
   getMatchHistory,
+  getMostPlayedRole,
   getRankedStats,
 } from './actions/stats-actions';
 
@@ -40,4 +44,5 @@ export {
   getSynergyStats,
   getDuoStats,
   getDuoMatchHistory,
+  getMatchFetchProgress,
 } from './actions/matchup-actions';

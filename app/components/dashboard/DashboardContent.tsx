@@ -6,6 +6,7 @@ import OverviewStats from './OverviewStats';
 import TopChampions from './TopChampions';
 import RecentMatches from './RecentMatches';
 import MatchupSynergyDuoSection from './MatchupSynergyDuoSection';
+import RecentTenGameSummary from './RecentTenGameSummary';
 import type { Match, RankedStats, Summoner } from '../../lib/database/types';
 import {
   filterMatchesByQueueType,
@@ -207,6 +208,8 @@ export default function DashboardContent({
 
   return (
     <>
+      <RecentTenGameSummary matches={filteredData.matches} />
+
       <OverviewStats
         stats={filteredData.stats}
         rankedStats={filteredData.rankedStats}

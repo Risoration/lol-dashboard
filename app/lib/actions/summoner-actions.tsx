@@ -2,10 +2,11 @@
 
 import { createServerClient } from '../supabase/server';
 import { RiotApi } from '../riot/api';
+import type { Region } from '../riot/types';
 import { z } from 'zod';
 import type { SummonerInsert } from '../database/types';
 
-const MAX_MATCH_COUNT = 20;
+const MAX_MATCH_COUNT = 40;
 
 const linkSummonerSchema = z.object({
   region: z.enum([
@@ -95,10 +96,12 @@ export async function linkSummoner(formData: FormData) {
     }
 
     // Fetch ranked stats using PUUID
-    const rankedStats = await riotApi.getRankedInfoByPuuid(
-      validated.region,
-      accountData.puuid
-    );
+    const rankedStats = summonerData.id
+      ? await riotApi.getRankedInfoBySummonerId(
+          validated.region,
+          summonerData.id
+        )
+      : await riotApi.getRankedInfoByPuuid(validated.region, accountData.puuid);
 
     console.log('🏆 Ranked stats:', rankedStats);
 
@@ -244,14 +247,52 @@ export async function refreshSummonerData(
 
   try {
     const riotApi = new RiotApi();
+    let activePuuid = summoner.puuid;
 
-    // Fetch recent match IDs (last 20 games)
-    const matchIds = await riotApi.getMatchIds(
-      summoner.region,
-      summoner.puuid,
-      MAX_MATCH_COUNT,
-      0
-    );
+    const ensureValidPuuid = async () => {
+      if (activePuuid && activePuuid.trim().length > 0) {
+        return activePuuid;
+      }
+      const refreshedAccount = await refreshAccountIdentifiersFromRiotId({
+        riotApi,
+        supabase,
+        summoner,
+      });
+      if (!refreshedAccount) {
+        throw new Error(
+          'Stored summoner is missing a valid PUUID. Please relink the account.'
+        );
+      }
+      activePuuid = refreshedAccount.puuid;
+      return activePuuid;
+    };
+
+    // Fetch recent match IDs (last 40 games)
+    const fetchMatchIds = async (puuid: string) =>
+      riotApi.getMatchIds(summoner.region, puuid, MAX_MATCH_COUNT, 0);
+
+    let matchIds: string[] = [];
+    try {
+      const puuidForFetch = await ensureValidPuuid();
+      matchIds = await fetchMatchIds(puuidForFetch);
+    } catch (error) {
+      const shouldRetry =
+        error instanceof Error &&
+        error.message.toLowerCase().includes('exception decrypting');
+      if (!shouldRetry) {
+        throw error;
+      }
+      const refreshedAccount = await refreshAccountIdentifiersFromRiotId({
+        riotApi,
+        supabase,
+        summoner,
+      });
+      if (!refreshedAccount) {
+        throw error;
+      }
+      activePuuid = refreshedAccount.puuid;
+      matchIds = await fetchMatchIds(activePuuid);
+    }
 
     const syncedAt = new Date().toISOString();
 
@@ -289,10 +330,7 @@ export async function refreshSummonerData(
 
       const matchRows = matches
         .map((match) => {
-          const participant = RiotApi.getPlayerParticipant(
-            match,
-            summoner.puuid
-          );
+          const participant = RiotApi.getPlayerParticipant(match, activePuuid);
           if (!participant) return null;
 
           return {
@@ -333,10 +371,37 @@ export async function refreshSummonerData(
     }
 
     // Fetch ranked stats using PUUID
-    const rankedStats = await riotApi.getRankedInfoByPuuid(
-      summoner.region,
-      summoner.puuid
-    );
+    // Prefer fetching by Summoner ID; if missing, fetch it via PUUID and persist it
+    let effectiveSummonerId = summoner.summoner_id as string | null;
+    if (!effectiveSummonerId) {
+      const refreshedSummoner = await riotApi.getSummonerByPuuid(
+        summoner.region,
+        summoner.puuid
+      );
+      effectiveSummonerId = refreshedSummoner.id ?? null;
+      if (effectiveSummonerId) {
+        await supabase
+          .from('summoners')
+          .update({ summoner_id: effectiveSummonerId })
+          .eq('id', summoner.id);
+      }
+    }
+
+    let rankedStats: Awaited<
+      ReturnType<typeof riotApi.getRankedInfoBySummonerId>
+    > = [];
+    if (effectiveSummonerId) {
+      rankedStats = await riotApi.getRankedInfoBySummonerId(
+        summoner.region,
+        effectiveSummonerId
+      );
+    } else {
+      const puuidForRanked = await ensureValidPuuid();
+      rankedStats = await riotApi.getRankedInfoByPuuid(
+        summoner.region,
+        puuidForRanked
+      );
+    }
 
     if (rankedStats && rankedStats.length > 0) {
       const rankedRows = rankedStats.map((entry) => ({
@@ -380,6 +445,60 @@ export async function refreshSummonerData(
       success: false,
       error: error instanceof Error ? error.message : 'Failed to refresh data',
     };
+  }
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
+
+async function refreshAccountIdentifiersFromRiotId({
+  riotApi,
+  supabase,
+  summoner,
+}: {
+  riotApi: RiotApi;
+  supabase: SupabaseClient;
+  summoner: {
+    id: string;
+    region: Region;
+    summoner_name: string | null;
+  };
+}) {
+  const riotId = summoner.summoner_name ?? '';
+  const [rawGameName, rawTagLine] = riotId.split('#');
+
+  if (!rawGameName || !rawTagLine) {
+    console.warn(
+      `Unable to refresh identifiers for summoner ${summoner.id}: missing Riot ID`
+    );
+    return null;
+  }
+
+  try {
+    const account = await riotApi.getAccountByRiotId(
+      summoner.region,
+      rawGameName.trim(),
+      rawTagLine.trim()
+    );
+
+    const { error: updateError } = await supabase
+      .from('summoners')
+      .update({
+        puuid: account.puuid,
+        summoner_name: `${account.gameName}#${account.tagLine}`,
+      })
+      .eq('id', summoner.id);
+
+    if (updateError) {
+      console.error(
+        'Failed to store refreshed account identifiers:',
+        updateError
+      );
+    }
+
+    return account;
+  } catch (err) {
+    console.error('Failed to refresh account identifiers from Riot ID:', err);
+    return null;
   }
 }
 
@@ -477,6 +596,79 @@ export async function setMainAccount(summonerId: string) {
   if (setError) {
     console.error('Failed to set main account:', setError);
     return { error: 'Failed to set main account' };
+  }
+
+  return { success: true };
+}
+
+export type UnlinkSummonerResult = { success: true } | { error: string };
+
+export async function unlinkSummoner(
+  summonerId: string
+): Promise<UnlinkSummonerResult> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorised' };
+  }
+
+  // Verify the summoner belongs to the user
+  const { data: summoner, error: summonerError } = await supabase
+    .from('summoners')
+    .select('*')
+    .eq('id', summonerId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (summonerError || !summoner) {
+    return { error: 'Summoner not found' };
+  }
+
+  // Check if this is the only account
+  const { data: allSummoners, error: countError } = await supabase
+    .from('summoners')
+    .select('id')
+    .eq('user_id', user.id);
+
+  if (countError) {
+    return { error: 'Failed to check account count' };
+  }
+
+  if (!allSummoners || allSummoners.length <= 1) {
+    return {
+      error:
+        'Cannot unlink your only account. Please link another account first.',
+    };
+  }
+
+  // If this is the main account, set another account as main first
+  if (summoner.is_main) {
+    const otherSummoner = allSummoners.find((s) => s.id !== summonerId);
+    if (otherSummoner) {
+      const { error: setMainError } = await supabase
+        .from('summoners')
+        .update({ is_main: true })
+        .eq('id', otherSummoner.id);
+
+      if (setMainError) {
+        console.error('Failed to set new main account:', setMainError);
+        return { error: 'Failed to reassign main account' };
+      }
+    }
+  }
+
+  // Delete the summoner (CASCADE will handle matches and ranked_stats)
+  const { error: deleteError } = await supabase
+    .from('summoners')
+    .delete()
+    .eq('id', summonerId);
+
+  if (deleteError) {
+    console.error('Failed to unlink summoner:', deleteError);
+    return { error: 'Failed to unlink account' };
   }
 
   return { success: true };

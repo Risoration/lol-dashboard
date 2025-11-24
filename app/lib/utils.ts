@@ -247,3 +247,37 @@ export function filterRankedStatsByQueueType<T extends { queue_type: string }>(
 
   return rankedStats.filter((stat) => stat.queue_type === queueType);
 }
+
+/**
+ * Get relevant teammate roles based on the user's most played role
+ * Returns an array of roles that are most relevant for synergy analysis
+ */
+export function getRelevantRolesForSynergy(
+  userRole: string | null
+): string[] | null {
+  if (!userRole) {
+    return null; // Show all roles if user role is unknown
+  }
+
+  const role = userRole.toUpperCase();
+  
+  switch (role) {
+    case 'TOP':
+      // Top laners care most about their jungler
+      return ['JUNGLE'];
+    case 'JUNGLE':
+      // Junglers care most about their mid laner and support
+      return ['MIDDLE', 'UTILITY'];
+    case 'MIDDLE':
+      // Mid laners care most about their jungler
+      return ['JUNGLE'];
+    case 'BOTTOM':
+      // Bot laners (ADC) care most about their support
+      return ['UTILITY'];
+    case 'UTILITY':
+      // Supports care about bot lane and jungle
+      return ['BOTTOM', 'JUNGLE'];
+    default:
+      return null; // Show all roles for unknown roles
+  }
+}

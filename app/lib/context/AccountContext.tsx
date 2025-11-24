@@ -15,10 +15,12 @@ interface AccountFilters {
 interface AccountContextType {
   summoners: Summoner[];
   filters: AccountFilters;
+  isFetching: boolean;
   setRegion: (region: Region) => void;
   setQueueType: (queueType: QueueType) => void;
   setSelectedSummoner: (summonerId: string | null) => void;
   setSummoners: (summoners: Summoner[]) => void;
+  setIsFetching: (isFetching: boolean) => void;
   getFilteredSummoners: () => Summoner[];
 }
 
@@ -26,6 +28,7 @@ const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [summoners, setSummoners] = useState<Summoner[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
   const [filters, setFilters] = useState<AccountFilters>({
     region: 'ALL',
     queueType: 'ALL',
@@ -61,10 +64,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       value={{
         summoners,
         filters,
+        isFetching,
         setRegion,
         setQueueType,
         setSelectedSummoner,
         setSummoners,
+        setIsFetching,
         getFilteredSummoners,
       }}
     >

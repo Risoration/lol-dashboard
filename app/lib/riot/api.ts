@@ -265,6 +265,30 @@ export class RiotApi {
   }
 
   /**
+   * Get ranked information by Summoner ID
+   * Uses platform routing (e.g., na1, euw1, kr)
+   * @param region - Platform region (e.g., 'NA1', 'EUW1')
+   * @param summonerId - Encrypted Summoner ID
+   * @returns Array of league entries for the summoner
+   */
+  async getRankedInfoBySummonerId(
+    region: Region,
+    summonerId: string
+  ): Promise<LeagueEntryDto[]> {
+    if (!summonerId || summonerId.trim().length === 0) {
+      throw new Error('Summoner ID cannot be empty');
+    }
+    if (!region) {
+      throw new Error('Region is required');
+    }
+
+    const url = `https://${region.toLowerCase()}.api.riotgames.com/lol/league/v4/entries/by-summoner/${encodeURIComponent(
+      summonerId
+    )}`;
+    return this.makeRequest<LeagueEntryDto[]>(url);
+  }
+
+  /**
    * Get match IDs by PUUID
    * @param region
    * @param puuid
@@ -289,7 +313,8 @@ export class RiotApi {
     }
 
     const regionalEndpoint = getRegionalEndpoint(region);
-    const url = `https://${regionalEndpoint}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${start}&count=${count}`;
+    const safePuuid = encodeURIComponent(puuid.trim());
+    const url = `https://${regionalEndpoint}.api.riotgames.com/lol/match/v5/matches/by-puuid/${safePuuid}/ids?start=${start}&count=${count}`;
 
     return this.makeRequest<string[]>(url);
   }
@@ -310,7 +335,8 @@ export class RiotApi {
   async getMultipleMatches(
     region: Region,
     matchIds: string[],
-    concurrency: number = 5
+    concurrency: number = 5,
+    onProgress?: (current: number, total: number) => void
   ): Promise<MatchDto[]> {
     //validate concurrency
     if (concurrency < 1 || concurrency > 10) {
@@ -326,6 +352,11 @@ export class RiotApi {
     console.log(
       `getMultipleMatches: Starting to fetch ${matchIds.length} matches in ${totalBatches} batches (concurrency: ${concurrency})`
     );
+
+    // Call progress callback with initial state
+    if (onProgress) {
+      onProgress(0, matchIds.length);
+    }
 
     //fetch matches in batches with better rate limit handling
     for (let i = 0; i < matchIds.length; i += concurrency) {
@@ -364,6 +395,11 @@ export class RiotApi {
 
       //add batch results to results array
       results.push(...validResults);
+
+      // Update progress
+      if (onProgress) {
+        onProgress(results.length, matchIds.length);
+      }
 
       console.log(
         `getMultipleMatches: Batch ${batchNumber} complete: ${validResults.length} matches fetched, ${results.length}/${matchIds.length} total`

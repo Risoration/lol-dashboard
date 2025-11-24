@@ -10,15 +10,17 @@ import {
 import MatchupsSection from './MatchupsSection';
 import SynergiesSection from './SynergiesSection';
 import DuosSection from './DuosSection';
+import MatchFetchProgress from './MatchFetchProgress';
 
 export default function MatchupSynergyDuoSection() {
-  const { filters, summoners } = useAccount();
+  const { filters, summoners, setIsFetching } = useAccount();
   const [matchups, setMatchups] = useState<any[]>([]);
   const [synergies, setSynergies] = useState<any[]>([]);
   const [duos, setDuos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
+  const [progressKeys, setProgressKeys] = useState<string[]>([]);
 
   // Defer loading until after initial render to improve perceived performance
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function MatchupSynergyDuoSection() {
 
       setLoading(true);
       setError(null);
+      setIsFetching(true);
 
       // Get the selected summoner or first summoner
       const selectedSummonerId =
@@ -48,12 +51,21 @@ export default function MatchupSynergyDuoSection() {
 
       if (!selectedSummonerId) {
         setLoading(false);
+        setIsFetching(false);
         return;
       }
 
       console.log(
         `[MatchupSynergyDuoSection] Starting fetch - selectedSummonerId: ${selectedSummonerId}, queueType: ${filters.queueType}`
       );
+
+      // Set progress keys for polling
+      const queueTypeStr = filters.queueType || 'ALL';
+      setProgressKeys([
+        `matchup:${selectedSummonerId}:${queueTypeStr}`,
+        `synergy:${selectedSummonerId}:${queueTypeStr}`,
+        `duo:${selectedSummonerId}:${queueTypeStr}`,
+      ]);
 
       try {
         // Fetch all three stats in parallel with queue type filter
@@ -93,6 +105,7 @@ export default function MatchupSynergyDuoSection() {
         );
       } finally {
         setLoading(false);
+        setIsFetching(false);
       }
     }
 
@@ -103,9 +116,10 @@ export default function MatchupSynergyDuoSection() {
     return (
       <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
         <div className='col-span-1 md:col-span-2'>
-          <div className='text-center py-8 text-muted-foreground'>
-            Loading matchup and synergy statistics...
-          </div>
+          <MatchFetchProgress
+            progressKeys={progressKeys}
+            onComplete={() => setIsFetching(false)}
+          />
         </div>
       </div>
     );
@@ -158,7 +172,11 @@ export default function MatchupSynergyDuoSection() {
       </div>
 
       {/* Duos */}
-      <DuosSection duos={duos} title='Best Duos' limit={5} />
+      <DuosSection
+        duos={duos}
+        title='Best Duos'
+        limit={5}
+      />
     </div>
   );
 }

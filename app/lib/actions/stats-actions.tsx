@@ -206,6 +206,69 @@ export async function getMatchHistory(
   return { success: true, matches: matches || [] };
 }
 
+/**
+ * Get the most played role for a summoner
+ * Returns the role with the most games played
+ */
+export async function getMostPlayedRole(summonerId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorised' };
+  }
+
+  // Verify ownership
+  const { data: summoner, error: summonerError } = await supabase
+    .from('summoners')
+    .select('*')
+    .eq('id', summonerId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (summonerError || !summoner) {
+    return { error: 'Summoner not found' };
+  }
+
+  // Get role counts from matches (use team_position, fallback to role)
+  const { data: matches, error: matchesError } = await supabase
+    .from('matches')
+    .select('team_position, role')
+    .eq('summoner_id', summonerId)
+    .not('team_position', 'is', null);
+
+  if (matchesError || !matches || matches.length === 0) {
+    return { success: true, role: null };
+  }
+
+  // Count roles (prefer team_position, fallback to role)
+  const roleCounts = new Map<string, number>();
+  for (const match of matches) {
+    const role = match.team_position || match.role;
+    if (role && role !== 'NONE') {
+      roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+    }
+  }
+
+  if (roleCounts.size === 0) {
+    return { success: true, role: null };
+  }
+
+  // Find the most played role
+  let mostPlayedRole: string | null = null;
+  let maxCount = 0;
+  for (const [role, count] of roleCounts.entries()) {
+    if (count > maxCount) {
+      maxCount = count;
+      mostPlayedRole = role;
+    }
+  }
+
+  return { success: true, role: mostPlayedRole };
+}
+
 export async function getRankedStats(summonerId: string) {
   const supabase = await createServerClient();
   const {

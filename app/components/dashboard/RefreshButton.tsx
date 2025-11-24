@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '../../../components/ui/button';
 import { refreshSummonerData } from '../../lib/actions';
 import type { RefreshSummonerResult } from '../../lib/actions/summoner-actions';
+import { useAccount } from '../../lib/context/AccountContext';
 
 interface RefreshButtonProps {
   summonerId: string;
@@ -37,6 +38,7 @@ export default function RefreshButton({
   lastSyncedAt,
 }: RefreshButtonProps) {
   const router = useRouter();
+  const { isFetching } = useAccount();
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isPending, startTransition] = useTransition();
 
@@ -45,9 +47,17 @@ export default function RefreshButton({
     [isPending, remainingSeconds]
   );
 
+  // Only start countdown after fetching is complete
+  // Reset countdown when fetching starts, start it when fetching completes
   useEffect(() => {
-    setRemainingSeconds(computeRemainingSeconds(lastSyncedAt));
-  }, [lastSyncedAt]);
+    if (isFetching) {
+      // Reset countdown while fetching
+      setRemainingSeconds(0);
+    } else {
+      // Start countdown when fetching completes
+      setRemainingSeconds(computeRemainingSeconds(lastSyncedAt));
+    }
+  }, [lastSyncedAt, isFetching]);
 
   useEffect(() => {
     if (remainingSeconds <= 0) {

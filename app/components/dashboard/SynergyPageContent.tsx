@@ -10,14 +10,16 @@ import {
 import MatchupsSection from './MatchupsSection';
 import SynergiesSection from './SynergiesSection';
 import DuosSection from './DuosSection';
+import MatchFetchProgress from './MatchFetchProgress';
 
 export default function SynergyPageContent() {
-  const { filters, summoners } = useAccount();
+  const { filters, summoners, setIsFetching } = useAccount();
   const [matchups, setMatchups] = useState<any[]>([]);
   const [synergies, setSynergies] = useState<any[]>([]);
   const [duos, setDuos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [progressKeys, setProgressKeys] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -29,6 +31,7 @@ export default function SynergyPageContent() {
 
       setLoading(true);
       setError(null);
+      setIsFetching(true);
 
       // Get the selected summoner or aggregate all
       const selectedSummonerId = filters.selectedSummonerId;
@@ -39,6 +42,13 @@ export default function SynergyPageContent() {
 
       if (selectedSummonerId) {
         // Fetch for single summoner
+        const queueTypeStr = filters.queueType || 'ALL';
+        setProgressKeys([
+          `matchup:${selectedSummonerId}:${queueTypeStr}`,
+          `synergy:${selectedSummonerId}:${queueTypeStr}`,
+          `duo:${selectedSummonerId}:${queueTypeStr}`,
+        ]);
+
         try {
           const [matchupsResult, synergiesResult, duosResult] =
             await Promise.all([
@@ -88,12 +98,24 @@ export default function SynergyPageContent() {
           );
         } finally {
           setLoading(false);
+          setIsFetching(false);
         }
       } else {
         // Aggregate across all accounts
         console.log(
           `[SynergyPageContent] Aggregating across ${summoners.length} accounts`
         );
+        const queueTypeStr = filters.queueType || 'ALL';
+        const keys: string[] = [];
+        for (const summoner of summoners) {
+          keys.push(
+            `matchup:${summoner.id}:${queueTypeStr}`,
+            `synergy:${summoner.id}:${queueTypeStr}`,
+            `duo:${summoner.id}:${queueTypeStr}`
+          );
+        }
+        setProgressKeys(keys);
+
         try {
           const allMatchups: any[] = [];
           const allSynergies: any[] = [];
@@ -241,12 +263,13 @@ export default function SynergyPageContent() {
           );
         } finally {
           setLoading(false);
+          setIsFetching(false);
         }
       }
     }
 
     fetchData();
-  }, [filters.selectedSummonerId, filters.queueType, summoners]);
+  }, [filters.selectedSummonerId, filters.queueType, summoners, setIsFetching]);
 
   if (summoners.length === 0) {
     return (
@@ -258,12 +281,10 @@ export default function SynergyPageContent() {
 
   if (loading) {
     return (
-      <div className='text-center py-12 text-muted-foreground'>
-        <p>Loading matchup, synergy, and duo statistics...</p>
-        <p className='text-sm mt-2'>
-          This may take a moment as we fetch full match data from Riot API.
-        </p>
-      </div>
+      <MatchFetchProgress
+        progressKeys={progressKeys}
+        onComplete={() => setIsFetching(false)}
+      />
     );
   }
 
@@ -344,7 +365,11 @@ export default function SynergyPageContent() {
         <p className='text-muted-foreground mb-4'>
           Your win rates when playing with specific summoners
         </p>
-        <DuosSection duos={duos} title='Best Duos' limit={100} />
+        <DuosSection
+          duos={duos}
+          title='Best Duos'
+          limit={100}
+        />
       </div>
     </div>
   );

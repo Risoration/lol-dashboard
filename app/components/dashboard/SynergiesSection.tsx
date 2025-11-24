@@ -32,29 +32,11 @@ interface SynergiesSectionProps {
   showBest?: boolean; // true for best, false for worst
 }
 
-type RoleFilter = 'ALL' | 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY';
-
-// Role display order
-const ROLE_ORDER: string[] = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
-
 // Format role for display (capitalize first letter, lowercase rest; UTILITY -> Support)
 function formatRoleDisplay(role: string | null): string {
   if (!role) return '';
   if (role === 'UTILITY') return 'Support';
   return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
-}
-
-// Sort roles in the specified order
-function sortRoles(roles: string[]): string[] {
-  return roles.sort((a, b) => {
-    const indexA = ROLE_ORDER.indexOf(a);
-    const indexB = ROLE_ORDER.indexOf(b);
-    // If role is not in the order array, put it at the end
-    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
 }
 
 export default function SynergiesSection({
@@ -66,24 +48,16 @@ export default function SynergiesSection({
   const [showAll, setShowAll] = useState(false);
   const [playerChampionFilter, setPlayerChampionFilter] =
     useState<string>('ALL');
-  const [teammateRoleFilter, setTeammateRoleFilter] =
-    useState<RoleFilter>('ALL');
 
   // Reset showAll when filters change
   useEffect(() => {
     setShowAll(false);
-  }, [playerChampionFilter, teammateRoleFilter]);
+  }, [playerChampionFilter]);
 
-  // Get unique player champions and teammate roles for filters
+  // Get unique player champions for filters
   const uniquePlayerChampions = Array.from(
     new Set(synergies.map((s) => s.playerChampionName))
   ).sort();
-
-  const uniqueRoles = sortRoles(
-    Array.from(
-      new Set(synergies.map((s) => s.teammateRole).filter((r) => r !== null))
-    ) as string[]
-  );
 
   // Sort synergies: best = highest winrate, worst = lowest winrate
   // Filter to only show synergies with at least 2 games
@@ -93,12 +67,6 @@ export default function SynergiesSection({
       if (
         playerChampionFilter !== 'ALL' &&
         s.playerChampionName !== playerChampionFilter
-      ) {
-        return false;
-      }
-      if (
-        teammateRoleFilter !== 'ALL' &&
-        s.teammateRole !== teammateRoleFilter
       ) {
         return false;
       }
@@ -139,38 +107,11 @@ export default function SynergiesSection({
               >
                 <option value='ALL'>All Champions</option>
                 {uniquePlayerChampions.map((champ) => (
-                  <option key={champ} value={champ}>
+                  <option
+                    key={champ}
+                    value={champ}
+                  >
                     {champ}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Teammate Role Filter */}
-            <div className='flex-1'>
-              <label
-                htmlFor='teammate-role-filter'
-                className='text-sm font-medium mb-2 block'
-              >
-                Teammate Role:
-              </label>
-              <select
-                id='teammate-role-filter'
-                value={teammateRoleFilter}
-                onChange={(e) =>
-                  setTeammateRoleFilter(e.target.value as RoleFilter)
-                }
-                className={cn(
-                  'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm',
-                  'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                  'dark:bg-slate-900 dark:border-slate-700'
-                )}
-              >
-                <option value='ALL'>All Roles</option>
-                {uniqueRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {formatRoleDisplay(role)}
                   </option>
                 ))}
               </select>
